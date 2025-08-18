@@ -1,4 +1,7 @@
-use axum::{response::Html, routing::get, serve::Serve, Router};
+mod routes;
+
+use axum::{routing::post, serve::Serve, Router};
+use routes::{login, logout, signup, verify_2fa, verify_token};
 use std::error::Error;
 use tower_http::services::ServeDir;
 
@@ -11,7 +14,11 @@ impl Application {
     pub async fn build(address: &str) -> Result<Self, Box<dyn Error>> {
         let router = Router::new()
             .nest_service("/", ServeDir::new("assets"))
-            .route("/hello", get(hello_handler));
+            .route("/signup", post(signup))
+            .route("/login", post(login))
+            .route("/logout", post(logout))
+            .route("/verify-2fa", post(verify_2fa))
+            .route("/verify-token", post(verify_token));
 
         let listener = tokio::net::TcpListener::bind(address).await?;
         let address = listener.local_addr()?.to_string();
@@ -23,8 +30,4 @@ impl Application {
     pub async fn run(self) -> Result<(), std::io::Error> {
         self.server.await
     }
-}
-
-async fn hello_handler() -> Html<&'static str> {
-    Html("This is a custom hello message!")
 }
