@@ -10,16 +10,16 @@ mercurium.online {
     }
 
     handle / {
-        redir /app 301
+        redir /app/ 301
     }
 
     # --- Reverse proxy auth-service ---
-    handle /auth/* {
+    handle_path /auth/* {
         reverse_proxy auth-service:3000
     }
 
     # --- Reverse proxy app-service ---
-    handle /app/* {
+    handle_path /app/* {
         reverse_proxy app-service:8000
     }
 
