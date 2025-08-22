@@ -11,4 +11,8 @@ mercurium.com {
     handle /app/* {
         reverse_proxy app-service:8000
     }
+
+    tls {
+        alpn
+    }
 }
