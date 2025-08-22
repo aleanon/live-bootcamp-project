@@ -1,8 +1,16 @@
 mod routes;
 
-use axum::{routing::post, serve::Serve, Router};
+use axum::{
+    extract::Host,
+    handler::HandlerWithoutStateExt,
+    http::{uri::Authority, StatusCode, Uri},
+    response::Redirect,
+    routing::post,
+    serve::Serve,
+    BoxError, Router,
+};
 use routes::{login, logout, signup, verify_2fa, verify_token};
-use std::error::Error;
+use std::{error::Error, net::SocketAddr};
 use tower_http::services::ServeDir;
 
 pub struct Application {
