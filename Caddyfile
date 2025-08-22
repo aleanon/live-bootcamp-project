@@ -1,5 +1,10 @@
 
 mercurium.com {
+    handle /.well-known/acme-challenge/* {
+        root * /var/lib/caddy
+        file_server
+    }
+
     handle / {
         redir /app 301
     }
@@ -12,5 +17,4 @@ mercurium.com {
         reverse_proxy app-service:8000
     }
 
-    tls
 }
