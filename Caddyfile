@@ -1,0 +1,14 @@
+
+mercurium.com {
+    handle / {
+        redir /app 301
+    }
+
+    handle /auth/* {
+        reverse_proxy auth-service:3000
+    }
+
+    handle /app/* {
+        reverse_proxy app-service:8000
+    }
+}

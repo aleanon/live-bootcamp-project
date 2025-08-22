@@ -4,13 +4,40 @@ services:
     restart: "always" # automatically restart container when server crashes
     environment: # set up environment variables
       AUTH_SERVICE_IP: ${AUTH_SERVICE_IP:-localhost} # Use localhost as the default value
-    ports:
-      - "8000:8000" # expose port 8000 so that applications outside the container can connect to it
+    expose:
+      - "8000" # expose port 8000 so that applications outside the container can connect to it
+    networks:
+      - backend
     depends_on: # only run app-service after auth-service has started
-      auth-service:
+      caddy:
         condition: service_started
+
   auth-service:
     image: aleanton/auth-service
     restart: "always" # automatically restart container when server crashes
+    expose:
+      - "3000" # expose port 3000 so that applications outside the container can connect to it
+    networks:
+      - backend
+    depends_on:
+      caddy:
+        condition: service_started
+
+  caddy:
+    image: caddy:2
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
     ports:
-      - "3000:3000" # expose port 3000 so that applications outside the container can connect to it
+      - "80:80"
+      - "443:443"
+    networks:
+      - backend
+
+volumes:
+  caddy_data:
+  caddy_config:
+
+networks:
+  backend:
