@@ -12,7 +12,5 @@ mercurium.com {
         reverse_proxy app-service:8000
     }
 
-    tls {
-        alpn
-    }
+    tls {}
 }
