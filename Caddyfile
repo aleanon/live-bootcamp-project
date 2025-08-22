@@ -1,16 +1,30 @@
 
-mercurium.com {
+mercurium.online {
 
-    # handle / {
-    #     redir /app 301
-    # }
+    # --- ACME challenge must be served by Caddy ---
+    handle /.well-known/acme-challenge/* {
+        # Caddy serves ACME challenge automatically
+        # Do NOT proxy or redirect this path
+        root * /var/www/caddy/acme-challenges
+        file_server
+    }
 
+    handle / {
+        redir /app 301
+    }
+
+    # --- Reverse proxy auth-service ---
     handle /auth/* {
         reverse_proxy auth-service:3000
     }
 
+    # --- Reverse proxy app-service ---
     handle /app/* {
         reverse_proxy app-service:8000
     }
 
+    # --- Optional catch-all for other paths ---
+    handle {
+        respond "404 Not Found"
+    }
 }
