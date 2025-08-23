@@ -3,18 +3,48 @@ use serde::Serialize;
 use crate::helpers::{get_random_email, TestApp};
 
 #[tokio::test]
-async fn signup_returns_200() {
+async fn signup_should_return_201_with_valid_input() {
     let app = TestApp::new().await;
 
     let body = serde_json::json!({
         "email": "test@example.com",
-        "password": "password",
+        "password": "passwordpassword",
         "requires2FA": false,
     });
 
     let response = app.post_signup(&body).await;
 
-    assert_eq!(response.status().as_u16(), 200);
+    assert_eq!(response.status().as_u16(), 201);
+}
+
+#[tokio::test]
+async fn signup_should_return_400_with_invalid_email() {
+    let app = TestApp::new().await;
+
+    let body = serde_json::json!({
+        "email": "invalid_email",
+        "password": "passwordpassword",
+        "requires2FA": false,
+    });
+
+    let response = app.post_signup(&body).await;
+
+    assert_eq!(response.status().as_u16(), 400);
+}
+
+#[tokio::test]
+async fn signup_should_return_400_with_invalid_password() {
+    let app = TestApp::new().await;
+
+    let body = serde_json::json!({
+        "email": "test@example.com",
+        "password": "short",
+        "requires2FA": false,
+    });
+
+    let response = app.post_signup(&body).await;
+
+    assert_eq!(response.status().as_u16(), 400);
 }
 
 #[tokio::test]
