@@ -6,7 +6,11 @@ mercurium.online {
         file_server
     }
 
-    handle_path /auth/*, /auth {
+    handle_path /auth/* {
+        reverse_proxy auth-service:3000
+    }
+
+    handle_path /auth {
         reverse_proxy auth-service:3000
     }
 

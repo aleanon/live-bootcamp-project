@@ -14,7 +14,7 @@ logoutLink.addEventListener("click", (e) => {
     if (response.ok) {
       loginLink.style.display = "block";
       logoutLink.style.display = "none";
-      protectImg.src = "/app/assets/default.jpg";
+      protectImg.src = "/assets/default.jpg";
     } else {
       alert("Failed to logout");
     }
@@ -22,7 +22,7 @@ logoutLink.addEventListener("click", (e) => {
 });
 
 (() => {
-  fetch("/app/protected").then((response) => {
+  fetch("/protected").then((response) => {
     if (response.ok) {
       loginLink.style.display = "none";
       logoutLink.style.display = "block";
@@ -32,13 +32,13 @@ logoutLink.addEventListener("click", (e) => {
         if (img_url !== undefined && img_url !== null && img_url !== "") {
           protectImg.src = img_url;
         } else {
-          protectImg.src = "/app/assets/default.jpg";
+          protectImg.src = "/assets/default.jpg";
         }
       });
     } else {
       loginLink.style.display = "block";
       logoutLink.style.display = "none";
-      protectImg.src = "/app/assets/default.jpg";
+      protectImg.src = "/assets/default.jpg";
     }
   });
 })();
