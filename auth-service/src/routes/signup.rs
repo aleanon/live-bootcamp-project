@@ -6,7 +6,10 @@ use axum::{
 };
 use serde::Deserialize;
 
-use crate::{app_state::AppState, domain::user::User};
+use crate::{
+    app_state::AppState,
+    domain::{error::AuthApiError, user::User},
+};
 
 #[derive(Deserialize)]
 pub struct SignupRequest {
@@ -18,28 +21,17 @@ pub struct SignupRequest {
 pub async fn signup(
     State(app_state): State<AppState>,
     Json(request): Json<SignupRequest>,
-) -> impl IntoResponse {
+) -> Result<impl IntoResponse, AuthApiError> {
     let user = match User::parse(request.email, request.password, request.requires_2fa) {
         Ok(credentials) => credentials,
-        Err(response) => {
-            return Response::builder()
-                .status(StatusCode::BAD_REQUEST)
-                .body(response)
-                .unwrap()
-        }
+        Err(_) => return Err(AuthApiError::InvalidCredentials),
     };
 
     let mut user_store = app_state.user_store.write().await;
 
     if let Err(_) = user_store.create_user(user) {
-        return Response::builder()
-            .status(StatusCode::CONFLICT)
-            .body("User already exists".to_owned())
-            .unwrap();
+        return Err(AuthApiError::UserAlreadyExists);
     }
 
-    Response::builder()
-        .status(StatusCode::CREATED)
-        .body("Account created successfully".to_owned())
-        .unwrap()
+    Ok(StatusCode::CREATED)
 }

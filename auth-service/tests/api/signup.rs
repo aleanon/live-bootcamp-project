@@ -1,4 +1,4 @@
-use serde::Serialize;
+use auth_service::domain::error::ErrorResponse;
 
 use crate::helpers::{get_random_email, TestApp};
 
@@ -18,6 +18,38 @@ async fn signup_should_return_201_with_valid_input() {
 }
 
 #[tokio::test]
+async fn should_return_400_if_invalid_input() {
+    let app = TestApp::new().await;
+
+    let input = vec![
+        serde_json::json!({
+            "email": "invalid_email",
+            "password": "passwordpassword",
+            "requires2FA": false,
+        }),
+        serde_json::json!({
+            "email": "test@example.com",
+            "password": "short",
+            "requires2FA": false,
+        }),
+    ];
+
+    for i in input.iter() {
+        let response = app.post_signup(i).await;
+        assert_eq!(response.status().as_u16(), 400, "Failed for input: {:?}", i);
+
+        assert_eq!(
+            response
+                .json::<ErrorResponse>()
+                .await
+                .expect("Could not deserialize response body to ErrorResponse")
+                .error,
+            "Invalid credentials".to_owned()
+        );
+    }
+}
+
+#[tokio::test]
 async fn signup_should_return_400_with_invalid_email() {
     let app = TestApp::new().await;
 
@@ -30,6 +62,33 @@ async fn signup_should_return_400_with_invalid_email() {
     let response = app.post_signup(&body).await;
 
     assert_eq!(response.status().as_u16(), 400);
+}
+
+#[tokio::test]
+async fn signup_should_return_409_if_email_already_exists() {
+    let app = TestApp::new().await;
+
+    let body = serde_json::json!({
+        "email": "invalid_email",
+        "password": "passwordpassword",
+        "requires2FA": false,
+    });
+
+    let response = app.post_signup(&body).await;
+
+    assert_eq!(response.status().as_u16(), 400);
+
+    let response = app.post_signup(&body).await;
+
+    assert_eq!(response.status().as_u16(), 400);
+    assert_eq!(
+        response
+            .json::<ErrorResponse>()
+            .await
+            .expect("Could not deserialize response body to ErrorResponse")
+            .error,
+        "Invalid credentials".to_owned()
+    );
 }
 
 #[tokio::test]

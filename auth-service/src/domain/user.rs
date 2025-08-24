@@ -17,8 +17,8 @@ impl User {
         if !EMAIL_REGEX.is_match(&email) {
             return Err("Invalid Email".to_owned());
         }
-        if password.len() <= 10 {
-            return Err("Invalid Password: Must be longer then 10 characters".to_owned());
+        if password.len() < 8 {
+            return Err("Invalid Password: Must be at least 8 characters".to_owned());
         }
 
         Ok(User {
