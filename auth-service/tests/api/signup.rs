@@ -1,4 +1,4 @@
-use auth_service::domain::error::ErrorResponse;
+use auth_service::domain::auth_api_error::ErrorResponse;
 
 use crate::helpers::{get_random_email, TestApp};
 

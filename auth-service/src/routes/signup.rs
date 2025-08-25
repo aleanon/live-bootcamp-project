@@ -8,7 +8,7 @@ use serde::Deserialize;
 
 use crate::{
     app_state::AppState,
-    domain::{error::AuthApiError, user::User},
+    domain::{auth_api_error::AuthApiError, user::User},
 };
 
 #[derive(Deserialize)]
@@ -18,6 +18,7 @@ pub struct SignupRequest {
     #[serde(rename = "requires2FA")]
     requires_2fa: bool,
 }
+
 pub async fn signup(
     State(app_state): State<AppState>,
     Json(request): Json<SignupRequest>,
@@ -29,7 +30,7 @@ pub async fn signup(
 
     let mut user_store = app_state.user_store.write().await;
 
-    if let Err(_) = user_store.create_user(user) {
+    if let Err(_) = user_store.add_user(user).await {
         return Err(AuthApiError::UserAlreadyExists);
     }
 

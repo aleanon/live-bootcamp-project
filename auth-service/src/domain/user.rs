@@ -35,6 +35,10 @@ impl User {
     pub fn password_matches(&self, password: &str) -> bool {
         self.password == password
     }
+
+    pub fn requires_2fa(&self) -> bool {
+        self.requires_2fa
+    }
 }
 
 impl PartialEq for User {

@@ -5,6 +5,7 @@ pub mod services;
 
 use app_state::AppState;
 use axum::{routing::post, serve::Serve, Router};
+use domain::data_stores::UserStore;
 use routes::{login, logout, signup, verify_2fa, verify_token};
 use std::error::Error;
 use tower_http::services::ServeDir;
