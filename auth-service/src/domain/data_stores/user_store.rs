@@ -1,11 +1,17 @@
-use crate::domain::user::User;
+use thiserror::Error;
 
-#[derive(Debug, PartialEq)]
+use crate::domain::user::{User, UserError};
+
+#[derive(Debug, PartialEq, Error)]
 pub enum UserStoreError {
+    #[error("User already exists")]
     UserAlreadyExists,
+    #[error("User not found")]
     UserNotFound,
+    #[error("Unexpected error")]
     UnexpectedError,
-    InvalidCredentials,
+    #[error("Invalid credentials: {0}")]
+    InvalidCredentials(UserError),
 }
 
 #[async_trait::async_trait]

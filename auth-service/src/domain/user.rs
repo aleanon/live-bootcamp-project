@@ -1,39 +1,39 @@
-use std::sync::LazyLock;
+use thiserror::Error;
 
-use regex::Regex;
+use super::{email::Email, password::Password};
 
-const EMAIL_REGEX_PATTERN: &str = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$";
-static EMAIL_REGEX: LazyLock<Regex> = LazyLock::new(|| Regex::new(EMAIL_REGEX_PATTERN).unwrap());
+#[derive(Debug, Error, PartialEq)]
+pub enum UserError {
+    #[error("Invalid Email")]
+    InvalidEmail,
+    #[error("Invalid Password: Must be at least 8 characters")]
+    InvalidPassword,
+    #[error("Passwords do not match")]
+    PasswordsDoNotMatch,
+}
 
 #[derive(Debug, Clone)]
 pub struct User {
-    email: String,
-    password: String,
+    email: Email,
+    password: Password,
     requires_2fa: bool,
 }
 
 impl User {
-    pub fn parse(email: String, password: String, requires_2fa: bool) -> Result<Self, String> {
-        if !EMAIL_REGEX.is_match(&email) {
-            return Err("Invalid Email".to_owned());
-        }
-        if password.len() < 8 {
-            return Err("Invalid Password: Must be at least 8 characters".to_owned());
-        }
-
+    pub fn parse(email: String, password: String, requires_2fa: bool) -> Result<Self, UserError> {
         Ok(User {
-            email,
-            password,
+            email: Email::try_from(email)?,
+            password: Password::try_from(password)?,
             requires_2fa,
         })
     }
 
     pub fn email(&self) -> &str {
-        &self.email
+        &self.email.as_str()
     }
 
     pub fn password_matches(&self, password: &str) -> bool {
-        self.password == password
+        self.password.matches(password)
     }
 
     pub fn requires_2fa(&self) -> bool {

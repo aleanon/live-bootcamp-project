@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::domain::{
     data_stores::{UserStore, UserStoreError},
-    user::User,
+    user::{User, UserError},
 };
 
 #[derive(Debug, Default)]
@@ -24,7 +24,9 @@ impl UserStore for HashMapUserStore {
     async fn validate_user(&self, email: &str, password: &str) -> Result<(), UserStoreError> {
         let user = self.get_user(email).await?;
         if !user.password_matches(password) {
-            Err(UserStoreError::InvalidCredentials)
+            Err(UserStoreError::InvalidCredentials(
+                UserError::PasswordsDoNotMatch,
+            ))
         } else {
             Ok(())
         }
@@ -105,7 +107,9 @@ mod tests {
             user_store
                 .validate_user(user.email(), "wrongpassword")
                 .await,
-            Err(UserStoreError::InvalidCredentials)
+            Err(UserStoreError::InvalidCredentials(
+                UserError::PasswordsDoNotMatch
+            ))
         );
     }
 }
