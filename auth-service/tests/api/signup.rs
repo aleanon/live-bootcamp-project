@@ -1,4 +1,7 @@
-use auth_service::domain::auth_api_error::ErrorResponse;
+use auth_service::domain::{
+    auth_api_error::{AuthApiError, ErrorResponse},
+    user::UserError,
+};
 
 use crate::helpers::{get_random_email, TestApp};
 
@@ -18,25 +21,25 @@ async fn signup_should_return_201_with_valid_input() {
 }
 
 #[tokio::test]
-async fn should_return_400_if_invalid_input() {
+async fn should_return_400_if_invalid_email() {
     let app = TestApp::new().await;
 
-    let input = vec![
-        serde_json::json!({
-            "email": "invalid_email",
-            "password": "passwordpassword",
-            "requires2FA": false,
-        }),
-        serde_json::json!({
-            "email": "test@example.com",
-            "password": "short",
-            "requires2FA": false,
-        }),
-    ];
+    let emails = vec!["invalid_email", "test@example.c"];
 
-    for i in input.iter() {
-        let response = app.post_signup(i).await;
-        assert_eq!(response.status().as_u16(), 400, "Failed for input: {:?}", i);
+    for email in emails {
+        let body = serde_json::json!({
+            "email": email,
+            "password": "password",
+            "requires2FA": false,
+        });
+
+        let response = app.post_signup(&body).await;
+        assert_eq!(
+            response.status().as_u16(),
+            400,
+            "Failed for email: {:?}",
+            email
+        );
 
         assert_eq!(
             response
@@ -44,18 +47,40 @@ async fn should_return_400_if_invalid_input() {
                 .await
                 .expect("Could not deserialize response body to ErrorResponse")
                 .error,
-            "Invalid credentials".to_owned()
+            AuthApiError::InvalidCredentials(UserError::InvalidEmail).to_string()
         );
     }
 }
 
 #[tokio::test]
-async fn signup_should_return_400_with_invalid_email() {
+async fn signup_should_return_400_if_invalid_password() {
     let app = TestApp::new().await;
 
+    let passwords = vec!["short"];
+
+    for password in passwords {
+        let body = serde_json::json!({
+            "email": "test@example.com",
+            "password": password,
+            "requires2FA": false,
+        });
+
+        let response = app.post_signup(&body).await;
+
+        assert_eq!(response.status().as_u16(), 400);
+        assert_eq!(
+            response
+                .json::<ErrorResponse>()
+                .await
+                .expect("Could not deserialize to error response")
+                .error,
+            AuthApiError::InvalidCredentials(UserError::InvalidPassword).to_string()
+        )
+    }
+
     let body = serde_json::json!({
-        "email": "invalid_email",
-        "password": "passwordpassword",
+        "email": "test@example.com",
+        "password": "short",
         "requires2FA": false,
     });
 
@@ -69,41 +94,26 @@ async fn signup_should_return_409_if_email_already_exists() {
     let app = TestApp::new().await;
 
     let body = serde_json::json!({
-        "email": "invalid_email",
+        "email": "example@mail.com",
         "password": "passwordpassword",
         "requires2FA": false,
     });
 
     let response = app.post_signup(&body).await;
 
-    assert_eq!(response.status().as_u16(), 400);
+    assert_eq!(response.status().as_u16(), 201);
 
     let response = app.post_signup(&body).await;
 
-    assert_eq!(response.status().as_u16(), 400);
+    assert_eq!(response.status().as_u16(), 409);
     assert_eq!(
         response
             .json::<ErrorResponse>()
             .await
             .expect("Could not deserialize response body to ErrorResponse")
             .error,
-        "Invalid credentials".to_owned()
+        AuthApiError::UserAlreadyExists.to_string()
     );
-}
-
-#[tokio::test]
-async fn signup_should_return_400_with_invalid_password() {
-    let app = TestApp::new().await;
-
-    let body = serde_json::json!({
-        "email": "test@example.com",
-        "password": "short",
-        "requires2FA": false,
-    });
-
-    let response = app.post_signup(&body).await;
-
-    assert_eq!(response.status().as_u16(), 400);
 }
 
 #[tokio::test]

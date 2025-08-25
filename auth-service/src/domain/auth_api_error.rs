@@ -4,43 +4,35 @@ use axum::{
     Json,
 };
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
+
+use super::user::UserError;
 
 #[derive(Serialize, Deserialize)]
 pub struct ErrorResponse {
     pub error: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum AuthApiError {
+    #[error("User already exists")]
     UserAlreadyExists,
-    InvalidCredentials,
+    #[error("Invalid credentials: {0}")]
+    InvalidCredentials(#[from] UserError),
+    #[error("Unexpected error")]
     UnexpectedError,
 }
-
-impl std::fmt::Display for AuthApiError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            AuthApiError::InvalidCredentials => write!(f, "Invalid credentials"),
-            AuthApiError::UserAlreadyExists => write!(f, "User already exists"),
-            AuthApiError::UnexpectedError => write!(f, "Internal server error"),
-        }
-    }
-}
-
-impl std::error::Error for AuthApiError {}
 
 impl IntoResponse for AuthApiError {
     fn into_response(self) -> Response {
         let (status_code, error_message) = match self {
-            AuthApiError::InvalidCredentials => (StatusCode::BAD_REQUEST, "Invalid credentials"),
-            AuthApiError::UserAlreadyExists => (StatusCode::CONFLICT, "User already exists"),
-            AuthApiError::UnexpectedError => {
-                (StatusCode::INTERNAL_SERVER_ERROR, "Unexpected error")
-            }
+            AuthApiError::InvalidCredentials(_) => (StatusCode::BAD_REQUEST, self.to_string()),
+            AuthApiError::UserAlreadyExists => (StatusCode::CONFLICT, self.to_string()),
+            AuthApiError::UnexpectedError => (StatusCode::INTERNAL_SERVER_ERROR, self.to_string()),
         };
 
         let body = Json(ErrorResponse {
-            error: error_message.to_string(),
+            error: error_message,
         });
 
         (status_code, body).into_response()

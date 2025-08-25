@@ -18,10 +18,7 @@ pub async fn signup(
     State(app_state): State<AppState>,
     Json(request): Json<SignupRequest>,
 ) -> Result<impl IntoResponse, AuthApiError> {
-    let user = match User::parse(request.email, request.password, request.requires_2fa) {
-        Ok(credentials) => credentials,
-        Err(_) => return Err(AuthApiError::InvalidCredentials),
-    };
+    let user = User::parse(request.email, request.password, request.requires_2fa)?;
 
     let mut user_store = app_state.user_store.write().await;
 

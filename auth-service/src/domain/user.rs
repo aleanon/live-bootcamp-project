@@ -28,12 +28,12 @@ impl User {
         })
     }
 
-    pub fn email(&self) -> &str {
-        &self.email.as_str()
+    pub fn email(&self) -> &Email {
+        &self.email
     }
 
-    pub fn password_matches(&self, password: &str) -> bool {
-        self.password.matches(password)
+    pub fn password_matches(&self, password: &Password) -> bool {
+        &self.password == password
     }
 
     pub fn requires_2fa(&self) -> bool {

@@ -2,12 +2,14 @@ use std::collections::HashMap;
 
 use crate::domain::{
     data_stores::{UserStore, UserStoreError},
+    email::Email,
+    password::Password,
     user::{User, UserError},
 };
 
 #[derive(Debug, Default)]
 pub struct HashMapUserStore {
-    users: HashMap<String, User>,
+    users: HashMap<Email, User>,
 }
 
 #[async_trait::async_trait]
@@ -21,7 +23,11 @@ impl UserStore for HashMapUserStore {
         Ok(())
     }
 
-    async fn validate_user(&self, email: &str, password: &str) -> Result<(), UserStoreError> {
+    async fn validate_user(
+        &self,
+        email: &Email,
+        password: &Password,
+    ) -> Result<(), UserStoreError> {
         let user = self.get_user(email).await?;
         if !user.password_matches(password) {
             Err(UserStoreError::InvalidCredentials(
@@ -32,7 +38,7 @@ impl UserStore for HashMapUserStore {
         }
     }
 
-    async fn get_user(&self, email: &str) -> Result<&User, UserStoreError> {
+    async fn get_user(&self, email: &Email) -> Result<&User, UserStoreError> {
         self.users.get(email).ok_or(UserStoreError::UserNotFound)
     }
 }
@@ -100,12 +106,18 @@ mod tests {
         let mut user_store = HashMapUserStore::default();
         assert!(user_store.add_user(user.clone()).await.is_ok());
         assert!(user_store
-            .validate_user(user.email(), "passwordpassword")
+            .validate_user(
+                user.email(),
+                &Password::try_from("passwordpassword".to_string()).unwrap()
+            )
             .await
             .is_ok());
         assert_eq!(
             user_store
-                .validate_user(user.email(), "wrongpassword")
+                .validate_user(
+                    user.email(),
+                    &Password::try_from("wrongpassword".to_string()).unwrap()
+                )
                 .await,
             Err(UserStoreError::InvalidCredentials(
                 UserError::PasswordsDoNotMatch

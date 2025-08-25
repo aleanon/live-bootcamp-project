@@ -1,6 +1,6 @@
 use super::user::UserError;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Password(String);
 
 impl TryFrom<String> for Password {
@@ -12,11 +12,5 @@ impl TryFrom<String> for Password {
         } else {
             Ok(Password(value))
         }
-    }
-}
-
-impl Password {
-    pub fn matches(&self, password: &str) -> bool {
-        self.0 == password
     }
 }
