@@ -2,7 +2,6 @@ use auth_service::domain::{
     auth_api_error::{AuthApiError, ErrorResponse},
     user::UserError,
 };
-use axum::http::StatusCode;
 
 use crate::helpers::TestApp;
 

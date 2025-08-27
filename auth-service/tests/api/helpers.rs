@@ -53,7 +53,7 @@ impl TestApp {
             .expect("Failed to execute request")
     }
 
-    pub async fn login(&self, email: String, password: String) -> reqwest::Response {
+    pub async fn login(&self, _email: String, _password: String) -> reqwest::Response {
         self.http_client
             .post(&format!("{}/login", &self.address))
             // .json(&format!("email:{},password:{}", email, password))
@@ -70,7 +70,7 @@ impl TestApp {
             .expect("Failed to execute request")
     }
 
-    pub async fn verify_2fa(&self, code: String) -> reqwest::Response {
+    pub async fn verify_2fa(&self, _code: String) -> reqwest::Response {
         self.http_client
             .post(&format!("{}/verify-2fa", &self.address))
             // .json(&format!("code:{}", code))
@@ -79,7 +79,7 @@ impl TestApp {
             .expect("Failed to execute request")
     }
 
-    pub async fn verify_token(&self, token: String) -> reqwest::Response {
+    pub async fn verify_token(&self, _token: String) -> reqwest::Response {
         self.http_client
             .post(&format!("{}/verify-token", &self.address))
             // .json(&format!("token:{}", token))
