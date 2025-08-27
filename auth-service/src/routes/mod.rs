@@ -1,9 +1,11 @@
+mod delete_account;
 mod login;
 mod logout;
 mod signup;
 mod verify_2fa;
 mod verify_token;
 
+pub use delete_account::delete_account;
 pub use login::login;
 pub use logout::logout;
 pub use signup::signup;

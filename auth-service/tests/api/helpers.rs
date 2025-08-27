@@ -3,6 +3,7 @@ use std::sync::Arc;
 use auth_service::{
     app_state::AppState, services::hashmap_user_store::HashMapUserStore, Application,
 };
+use serde::Serialize;
 use tokio::sync::RwLock;
 use uuid::Uuid;
 
@@ -82,6 +83,15 @@ impl TestApp {
         self.http_client
             .post(&format!("{}/verify-token", &self.address))
             // .json(&format!("token:{}", token))
+            .send()
+            .await
+            .expect("Failed to execute request")
+    }
+
+    pub async fn delete_account<Body: Serialize>(&self, body: &Body) -> reqwest::Response {
+        self.http_client
+            .post(&format!("{}/delete-account", &self.address))
+            .json(body)
             .send()
             .await
             .expect("Failed to execute request")

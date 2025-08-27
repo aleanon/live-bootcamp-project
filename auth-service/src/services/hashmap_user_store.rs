@@ -5,6 +5,7 @@ use crate::domain::{
     email::Email,
     password::Password,
     user::{User, UserError},
+    validated_user::ValidatedUser,
 };
 
 #[derive(Debug, Default)]
@@ -27,19 +28,24 @@ impl UserStore for HashMapUserStore {
         &self,
         email: &Email,
         password: &Password,
-    ) -> Result<(), UserStoreError> {
+    ) -> Result<ValidatedUser, UserStoreError> {
         let user = self.get_user(email).await?;
         if !user.password_matches(password) {
-            Err(UserStoreError::InvalidCredentials(
-                UserError::PasswordsDoNotMatch,
-            ))
+            Err(UserStoreError::InvalidCredentials(UserError::WrongPassword))
         } else {
-            Ok(())
+            Ok(ValidatedUser::new(email.clone()))
         }
     }
 
     async fn get_user(&self, email: &Email) -> Result<&User, UserStoreError> {
         self.users.get(email).ok_or(UserStoreError::UserNotFound)
+    }
+
+    async fn delete_user(&mut self, user: &ValidatedUser) -> Result<(), UserStoreError> {
+        self.users
+            .remove(user.email())
+            .map(|_| ())
+            .ok_or(UserStoreError::UserNotFound)
     }
 }
 
@@ -119,9 +125,25 @@ mod tests {
                     &Password::try_from("wrongpassword".to_string()).unwrap()
                 )
                 .await,
-            Err(UserStoreError::InvalidCredentials(
-                UserError::PasswordsDoNotMatch
-            ))
+            Err(UserStoreError::InvalidCredentials(UserError::WrongPassword))
         );
+    }
+
+    #[tokio::test]
+    async fn test_delete_user() {
+        let user = User::parse(
+            "test@example.com".to_string(),
+            "passwordpassword".to_string(),
+            false,
+        )
+        .unwrap();
+        let mut user_store = HashMapUserStore::default();
+        assert!(user_store.add_user(user.clone()).await.is_ok());
+        let validated_user = user_store
+            .validate_user(user.email(), user.password())
+            .await
+            .expect("Unable to validate user");
+        assert!(user_store.delete_user(&validated_user).await.is_ok());
+        assert!(user_store.get_user(user.email()).await.is_err());
     }
 }

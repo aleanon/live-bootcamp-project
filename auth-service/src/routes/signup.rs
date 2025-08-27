@@ -26,5 +26,8 @@ pub async fn signup(
         return Err(AuthApiError::UserAlreadyExists);
     }
 
-    Ok(StatusCode::CREATED)
+    Ok((
+        StatusCode::CREATED,
+        String::from("User created successfully!"),
+    ))
 }

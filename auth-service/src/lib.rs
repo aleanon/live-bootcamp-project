@@ -5,7 +5,7 @@ pub mod services;
 
 use app_state::AppState;
 use axum::{routing::post, serve::Serve, Router};
-use routes::{login, logout, signup, verify_2fa, verify_token};
+use routes::{delete_account, login, logout, signup, verify_2fa, verify_token};
 use std::error::Error;
 use tower_http::services::ServeDir;
 
@@ -23,6 +23,7 @@ impl Application {
             .route("/logout", post(logout))
             .route("/verify-2fa", post(verify_2fa))
             .route("/verify-token", post(verify_token))
+            .route("/delete-account", post(delete_account))
             .with_state(app_state);
 
         let listener = tokio::net::TcpListener::bind(address).await?;

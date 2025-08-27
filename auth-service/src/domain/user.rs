@@ -9,7 +9,7 @@ pub enum UserError {
     #[error("Invalid Password: Must be at least 8 characters")]
     InvalidPassword,
     #[error("Passwords do not match")]
-    PasswordsDoNotMatch,
+    WrongPassword,
 }
 
 #[derive(Debug, Clone)]
@@ -30,6 +30,10 @@ impl User {
 
     pub fn email(&self) -> &Email {
         &self.email
+    }
+
+    pub fn password(&self) -> &Password {
+        &self.password
     }
 
     pub fn password_matches(&self, password: &Password) -> bool {
