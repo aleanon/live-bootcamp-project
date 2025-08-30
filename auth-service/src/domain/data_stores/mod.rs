@@ -1,3 +1,4 @@
+mod two_factor_store;
 mod user_store;
 
 pub use user_store::UserStore;

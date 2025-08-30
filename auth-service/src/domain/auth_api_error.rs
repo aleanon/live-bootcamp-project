@@ -21,6 +21,8 @@ pub enum AuthApiError {
     UserAlreadyExists,
     #[error("Invalid credentials: {0}")]
     InvalidCredentials(#[from] UserError),
+    #[error("Authentication failed: {0}")]
+    AuthenticationError(Box<dyn std::error::Error + Send + Sync>),
     #[error("Unexpected error")]
     UnexpectedError,
 }
@@ -31,6 +33,7 @@ impl IntoResponse for AuthApiError {
             AuthApiError::UserNotFound => (StatusCode::NOT_FOUND, self.to_string()),
             AuthApiError::InvalidCredentials(_) => (StatusCode::BAD_REQUEST, self.to_string()),
             AuthApiError::UserAlreadyExists => (StatusCode::CONFLICT, self.to_string()),
+            AuthApiError::AuthenticationError(_) => (StatusCode::UNAUTHORIZED, self.to_string()),
             AuthApiError::UnexpectedError => (StatusCode::INTERNAL_SERVER_ERROR, self.to_string()),
         };
 
@@ -45,10 +48,10 @@ impl IntoResponse for AuthApiError {
 impl From<UserStoreError> for AuthApiError {
     fn from(error: UserStoreError) -> Self {
         match error {
-            UserStoreError::InvalidCredentials(user_error) => Self::InvalidCredentials(user_error),
             UserStoreError::UserAlreadyExists => AuthApiError::UserAlreadyExists,
             UserStoreError::UnexpectedError => AuthApiError::UnexpectedError,
             UserStoreError::UserNotFound => AuthApiError::UserNotFound,
+            UserStoreError::IncorrectPassword => AuthApiError::AuthenticationError(Box::new(error)),
         }
     }
 }

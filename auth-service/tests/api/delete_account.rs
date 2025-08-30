@@ -1,9 +1,9 @@
 use auth_service::domain::{
     auth_api_error::{AuthApiError, ErrorResponse},
-    user::UserError,
+    data_stores::UserStoreError,
 };
 
-use crate::helpers::TestApp;
+use crate::helpers::{get_standard_test_user, TestApp};
 
 #[tokio::test]
 pub async fn delete_account_should_succeed_with_valid_credentials() {
@@ -27,16 +27,15 @@ pub async fn delete_account_should_succeed_with_valid_credentials() {
 
 #[tokio::test]
 pub async fn delete_account_should_return_400_with_incorrect_password() {
-    let client = TestApp::new().await;
+    let app = TestApp::new().await;
 
-    let body = serde_json::json!({
-        "email": "test@example.com",
-        "password": "password",
-        "requires2FA": false,
-    });
-
-    let user_created = client.post_signup(&body).await;
-    assert_eq!(user_created.status().as_u16(), 201);
+    assert!(
+        app.post_signup(&get_standard_test_user(false))
+            .await
+            .status()
+            .as_u16()
+            == 201
+    );
 
     let body = serde_json::json!({
         "email": "test@example.com",
@@ -44,15 +43,15 @@ pub async fn delete_account_should_return_400_with_incorrect_password() {
         "requires2FA": false,
     });
 
-    let user_deleted = client.delete_account(&body).await;
-    assert_eq!(user_deleted.status().as_u16(), 400);
+    let user_deleted = app.delete_account(&body).await;
+    assert_eq!(user_deleted.status().as_u16(), 401);
     assert_eq!(
         user_deleted
             .json::<ErrorResponse>()
             .await
             .expect("Could not deserialize response body to ErrorResponse")
             .error,
-        AuthApiError::InvalidCredentials(UserError::WrongPassword).to_string()
+        AuthApiError::AuthenticationError(Box::new(UserStoreError::IncorrectPassword)).to_string()
     );
 }
 

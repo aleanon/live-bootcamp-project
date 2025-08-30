@@ -4,7 +4,7 @@ use crate::domain::{
     data_stores::{UserStore, UserStoreError},
     email::Email,
     password::Password,
-    user::{User, UserError},
+    user::User,
     validated_user::ValidatedUser,
 };
 
@@ -31,9 +31,9 @@ impl UserStore for HashMapUserStore {
     ) -> Result<ValidatedUser, UserStoreError> {
         let user = self.get_user(email).await?;
         if !user.password_matches(password) {
-            Err(UserStoreError::InvalidCredentials(UserError::WrongPassword))
+            Err(UserStoreError::IncorrectPassword)
         } else {
-            Ok(ValidatedUser::new(email.clone()))
+            Ok(ValidatedUser::new(email.clone(), user.requires_2fa()))
         }
     }
 
@@ -125,7 +125,7 @@ mod tests {
                     &Password::try_from("wrongpassword".to_string()).unwrap()
                 )
                 .await,
-            Err(UserStoreError::InvalidCredentials(UserError::WrongPassword))
+            Err(UserStoreError::IncorrectPassword)
         );
     }
 

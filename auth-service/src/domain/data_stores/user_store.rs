@@ -1,11 +1,6 @@
 use thiserror::Error;
 
-use crate::domain::{
-    email::Email,
-    password::Password,
-    user::{User, UserError},
-    validated_user::ValidatedUser,
-};
+use crate::domain::{email::Email, password::Password, user::User, validated_user::ValidatedUser};
 
 #[derive(Debug, PartialEq, Error)]
 pub enum UserStoreError {
@@ -13,10 +8,10 @@ pub enum UserStoreError {
     UserAlreadyExists,
     #[error("User not found")]
     UserNotFound,
+    #[error("Incorrect password")]
+    IncorrectPassword,
     #[error("Unexpected error")]
     UnexpectedError,
-    #[error("Invalid credentials: {0}")]
-    InvalidCredentials(#[from] UserError),
 }
 
 #[async_trait::async_trait]

@@ -8,8 +8,6 @@ pub enum UserError {
     InvalidEmail,
     #[error("Invalid Password: Must be at least 8 characters")]
     InvalidPassword,
-    #[error("Passwords do not match")]
-    WrongPassword,
 }
 
 #[derive(Debug, Clone)]

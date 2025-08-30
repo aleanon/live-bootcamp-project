@@ -4,6 +4,7 @@ use auth_service::{
     app_state::AppState, services::hashmap_user_store::HashMapUserStore, Application,
 };
 use serde::Serialize;
+use serde_json::Value;
 use tokio::sync::RwLock;
 use uuid::Uuid;
 
@@ -53,10 +54,10 @@ impl TestApp {
             .expect("Failed to execute request")
     }
 
-    pub async fn login(&self, _email: String, _password: String) -> reqwest::Response {
+    pub async fn login<Body: Serialize>(&self, body: &Body) -> reqwest::Response {
         self.http_client
             .post(&format!("{}/login", &self.address))
-            // .json(&format!("email:{},password:{}", email, password))
+            .json(body)
             .send()
             .await
             .expect("Failed to execute request")
@@ -100,4 +101,12 @@ impl TestApp {
 
 pub fn get_random_email() -> String {
     format!("{}@example.com", Uuid::new_v4())
+}
+
+pub fn get_standard_test_user(two_fa: bool) -> Value {
+    serde_json::json!({
+        "email": "test@example.com",
+        "password": "password",
+        "requires2FA": two_fa
+    })
 }
