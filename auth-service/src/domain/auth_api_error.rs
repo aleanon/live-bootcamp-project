@@ -30,7 +30,7 @@ pub enum AuthApiError {
 impl IntoResponse for AuthApiError {
     fn into_response(self) -> Response {
         let (status_code, error_message) = match self {
-            AuthApiError::UserNotFound => (StatusCode::NOT_FOUND, self.to_string()),
+            AuthApiError::UserNotFound => (StatusCode::UNAUTHORIZED, self.to_string()),
             AuthApiError::InvalidCredentials(_) => (StatusCode::BAD_REQUEST, self.to_string()),
             AuthApiError::UserAlreadyExists => (StatusCode::CONFLICT, self.to_string()),
             AuthApiError::AuthenticationError(_) => (StatusCode::UNAUTHORIZED, self.to_string()),

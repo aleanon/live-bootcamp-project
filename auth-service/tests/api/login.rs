@@ -97,7 +97,6 @@ async fn should_return_401_with_wrong_password() {
     let body = serde_json::json!({
         "email": "test@example.com",
         "password": "wrongpassword",
-        "requires2FA": false,
     });
 
     let response = app.login(&body).await;
@@ -110,6 +109,34 @@ async fn should_return_401_with_wrong_password() {
             .expect("Unable to parse error response")
             .error,
         AuthApiError::AuthenticationError(Box::new(UserStoreError::IncorrectPassword)).to_string()
+    )
+}
+
+#[tokio::test]
+async fn should_return_401_with_unregistered_email() {
+    let app = TestApp::new().await;
+
+    assert!(app
+        .post_signup(&get_standard_test_user(false))
+        .await
+        .status()
+        .is_success());
+
+    let body = serde_json::json!({
+        "email": "unregistered@example.com",
+        "password": "password",
+    });
+
+    let response = app.login(&body).await;
+
+    assert_eq!(response.status().as_u16(), 401);
+    assert_eq!(
+        response
+            .json::<ErrorResponse>()
+            .await
+            .expect("Unable to parse error response")
+            .error,
+        AuthApiError::UserNotFound.to_string()
     )
 }
 

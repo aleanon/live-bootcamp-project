@@ -26,7 +26,7 @@ pub async fn delete_account_should_succeed_with_valid_credentials() {
 }
 
 #[tokio::test]
-pub async fn delete_account_should_return_400_with_incorrect_password() {
+pub async fn delete_account_should_return_401_with_incorrect_password() {
     let app = TestApp::new().await;
 
     assert!(
@@ -56,7 +56,7 @@ pub async fn delete_account_should_return_400_with_incorrect_password() {
 }
 
 #[tokio::test]
-pub async fn delete_account_should_return_404_with_nonexistent_user() {
+pub async fn delete_account_should_return_401_with_nonexistent_user() {
     let client = TestApp::new().await;
 
     let body = serde_json::json!({
@@ -66,7 +66,7 @@ pub async fn delete_account_should_return_404_with_nonexistent_user() {
     });
 
     let response = client.delete_account(&body).await;
-    assert_eq!(response.status().as_u16(), 404);
+    assert_eq!(response.status().as_u16(), 401);
     assert_eq!(
         response
             .json::<ErrorResponse>()

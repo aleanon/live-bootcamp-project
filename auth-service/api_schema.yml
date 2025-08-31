@@ -316,8 +316,8 @@ paths:
                 properties:
                   error:
                     type: string
-        "404":
-          description: Account not found
+        "401":
+          description: Unauthorized access
           content:
             application/json:
               schema:
