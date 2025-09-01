@@ -21,8 +21,8 @@ impl TryFrom<String> for Email {
     }
 }
 
-impl Email {
-    pub fn as_str(&self) -> &str {
+impl AsRef<str> for Email {
+    fn as_ref(&self) -> &str {
         &self.0
     }
 }

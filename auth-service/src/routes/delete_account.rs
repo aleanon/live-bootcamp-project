@@ -38,7 +38,7 @@ pub async fn delete_account(
         StatusCode::OK,
         format!(
             "User {} deleted successfully",
-            validated_user.email().as_str()
+            validated_user.email().as_ref()
         ),
     ))
 }

@@ -6,6 +6,8 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+use crate::utils::auth::GenerateTokenError;
+
 use super::{data_stores::UserStoreError, user::UserError};
 
 #[derive(Serialize, Deserialize)]
@@ -52,6 +54,15 @@ impl From<UserStoreError> for AuthApiError {
             UserStoreError::UnexpectedError => AuthApiError::UnexpectedError,
             UserStoreError::UserNotFound => AuthApiError::UserNotFound,
             UserStoreError::IncorrectPassword => AuthApiError::AuthenticationError(Box::new(error)),
+        }
+    }
+}
+
+impl From<GenerateTokenError> for AuthApiError {
+    fn from(error: GenerateTokenError) -> Self {
+        match error {
+            GenerateTokenError::TokenError(err) => AuthApiError::AuthenticationError(Box::new(err)),
+            GenerateTokenError::UnexpectedError => AuthApiError::UnexpectedError,
         }
     }
 }
