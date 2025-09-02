@@ -1,8 +1,13 @@
 use std::sync::Arc;
 
 use auth_service::{
-    app_state::AppState, services::hashmap_user_store::HashMapUserStore, Application,
+    app_state::AppState,
+    services::hashmap_user_store::HashMapUserStore,
+    utils::constants::{test, JWT_COOKIE_NAME},
+    Application,
 };
+
+use reqwest::{cookie::Jar, Url};
 use serde::Serialize;
 use serde_json::Value;
 use tokio::sync::RwLock;
@@ -10,6 +15,7 @@ use uuid::Uuid;
 
 pub struct TestApp {
     pub address: String,
+    pub cookie_jar: Arc<Jar>,
     pub http_client: reqwest::Client,
 }
 
@@ -18,7 +24,7 @@ impl TestApp {
         let user_store = Arc::new(RwLock::new(HashMapUserStore::default()));
         let app_state = AppState::new(user_store);
 
-        let app = Application::build(app_state, "127.0.0.0:0")
+        let app = Application::build(app_state, test::APP_ADDRESS)
             .await
             .expect("Failed to build app");
 
@@ -26,12 +32,27 @@ impl TestApp {
 
         let _ = tokio::spawn(app.run());
 
-        let http_client = reqwest::Client::new();
+        let cookie_jar = Arc::new(Jar::default());
+        let http_client = reqwest::Client::builder()
+            .cookie_provider(cookie_jar.clone())
+            .build()
+            .expect("Failed to build client");
 
         TestApp {
             address,
+            cookie_jar,
             http_client,
         }
+    }
+
+    pub fn add_invalid_cookie(&self) {
+        self.cookie_jar.add_cookie_str(
+            &format!(
+                "{}=invalid; HttpOnly; SameSite=Lax; Path=/",
+                JWT_COOKIE_NAME
+            ),
+            &Url::parse(&self.address).expect("Failed to parse URL"),
+        );
     }
 
     pub async fn get_root(&self) -> reqwest::Response {

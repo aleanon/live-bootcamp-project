@@ -6,7 +6,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::utils::auth::GenerateTokenError;
+use crate::utils::auth::TokenAuthError;
 
 use super::{data_stores::UserStoreError, user::UserError};
 
@@ -23,6 +23,8 @@ pub enum AuthApiError {
     UserAlreadyExists,
     #[error("Invalid credentials: {0}")]
     InvalidCredentials(#[from] UserError),
+    #[error("Missing token")]
+    MissingToken,
     #[error("Authentication failed: {0}")]
     AuthenticationError(Box<dyn std::error::Error + Send + Sync>),
     #[error("Unexpected error")]
@@ -33,7 +35,9 @@ impl IntoResponse for AuthApiError {
     fn into_response(self) -> Response {
         let (status_code, error_message) = match self {
             AuthApiError::UserNotFound => (StatusCode::UNAUTHORIZED, self.to_string()),
-            AuthApiError::InvalidCredentials(_) => (StatusCode::BAD_REQUEST, self.to_string()),
+            AuthApiError::InvalidCredentials(_) | AuthApiError::MissingToken => {
+                (StatusCode::BAD_REQUEST, self.to_string())
+            }
             AuthApiError::UserAlreadyExists => (StatusCode::CONFLICT, self.to_string()),
             AuthApiError::AuthenticationError(_) => (StatusCode::UNAUTHORIZED, self.to_string()),
             AuthApiError::UnexpectedError => (StatusCode::INTERNAL_SERVER_ERROR, self.to_string()),
@@ -58,11 +62,14 @@ impl From<UserStoreError> for AuthApiError {
     }
 }
 
-impl From<GenerateTokenError> for AuthApiError {
-    fn from(error: GenerateTokenError) -> Self {
+impl From<TokenAuthError> for AuthApiError {
+    fn from(error: TokenAuthError) -> Self {
         match error {
-            GenerateTokenError::TokenError(err) => AuthApiError::AuthenticationError(Box::new(err)),
-            GenerateTokenError::UnexpectedError => AuthApiError::UnexpectedError,
+            TokenAuthError::InvalidToken | TokenAuthError::TokenError(_) => {
+                AuthApiError::AuthenticationError(Box::new(error))
+            }
+            TokenAuthError::MissingToken => AuthApiError::MissingToken,
+            TokenAuthError::UnexpectedError => AuthApiError::UnexpectedError,
         }
     }
 }
