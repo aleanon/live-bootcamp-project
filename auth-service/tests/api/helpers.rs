@@ -101,10 +101,10 @@ impl TestApp {
             .expect("Failed to execute request")
     }
 
-    pub async fn verify_token(&self, _token: String) -> reqwest::Response {
+    pub async fn verify_token<Body: Serialize>(&self, token: &Body) -> reqwest::Response {
         self.http_client
             .post(&format!("{}/verify-token", &self.address))
-            // .json(&format!("token:{}", token))
+            .json(token)
             .send()
             .await
             .expect("Failed to execute request")

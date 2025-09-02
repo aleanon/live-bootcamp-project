@@ -1,30 +1,51 @@
+use reqwest::{cookie::CookieStore, Url};
+
 use crate::helpers::{get_standard_test_user, TestApp};
 
 #[tokio::test]
 async fn verify_token_returns_200() {
     let app = TestApp::new().await;
 
-    assert!(app
-        .post_signup(&get_standard_test_user(false))
-        .await
-        .status()
-        .is_success());
-
-    let body = serde_json::json!({
-        "email": "test@example.com",
-        "password": "password"
-    });
-
-    let code = "123456".to_owned();
+    let body = get_standard_test_user(false);
+    assert!(app.post_signup(&body).await.status().is_success());
 
     let response = app.login(&body).await;
-
     assert_eq!(response.status().as_u16(), 200);
 
-    let response = app.verify_2fa(code).await;
-    assert_eq!(response.status().as_u16(), 200);
+    let cookie = app
+        .cookie_jar
+        .cookies(&Url::parse(&app.address).unwrap())
+        .unwrap();
 
-    let response = app.verify_token("".to_string()).await;
+    let (_, token) = cookie.to_str().unwrap().split_once('=').unwrap();
+
+    let body = serde_json::json!({
+        "token": token
+    });
+
+    let response = app.verify_token(&body).await;
 
     assert_eq!(response.status().as_u16(), 200);
+}
+
+#[tokio::test]
+async fn should_return_401_if_token_is_invalid() {
+    let app = TestApp::new().await;
+
+    let body = serde_json::json!({
+        "token": "invalid token"
+    });
+
+    let response = app.verify_token(&body).await;
+
+    assert_eq!(response.status().as_u16(), 401);
+}
+
+#[tokio::test]
+async fn should_return_422_if_malformed_input() {
+    let app = TestApp::new().await;
+
+    let response = app.verify_token(&"").await;
+
+    assert_eq!(response.status().as_u16(), 422);
 }
