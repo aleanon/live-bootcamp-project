@@ -3,7 +3,7 @@ use reqwest::{cookie::CookieStore, Url};
 use crate::helpers::{get_standard_test_user, TestApp};
 
 #[tokio::test]
-async fn verify_token_returns_200() {
+async fn should_return_200_with_valid_token() {
     let app = TestApp::new().await;
 
     let body = get_standard_test_user(false);
@@ -34,6 +34,29 @@ async fn should_return_401_if_token_is_invalid() {
 
     let body = serde_json::json!({
         "token": "invalid token"
+    });
+
+    let response = app.verify_token(&body).await;
+
+    assert_eq!(response.status().as_u16(), 401);
+}
+
+#[tokio::test]
+async fn should_return_401_if_token_is_banned() {
+    let app = TestApp::new().await;
+
+    let body = get_standard_test_user(true);
+    assert!(app.post_signup(&body).await.status().is_success());
+
+    let response = app.login(&body).await;
+    assert_eq!(response.status().as_u16(), 200);
+
+    let token = app.get_jwt_token();
+
+    assert!(app.logout().await.status().is_success());
+
+    let body = serde_json::json!({
+        "token": token
     });
 
     let response = app.verify_token(&body).await;

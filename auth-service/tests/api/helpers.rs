@@ -2,12 +2,17 @@ use std::sync::Arc;
 
 use auth_service::{
     app_state::AppState,
-    services::hashmap_user_store::HashMapUserStore,
+    services::{
+        hashmap_user_store::HashMapUserStore, hashset_banned_token_store::HashSetBannedTokenStore,
+    },
     utils::constants::{test, JWT_COOKIE_NAME},
     Application,
 };
 
-use reqwest::{cookie::Jar, Url};
+use reqwest::{
+    cookie::{CookieStore, Jar},
+    Url,
+};
 use serde::Serialize;
 use serde_json::Value;
 use tokio::sync::RwLock;
@@ -22,7 +27,8 @@ pub struct TestApp {
 impl TestApp {
     pub async fn new() -> Self {
         let user_store = Arc::new(RwLock::new(HashMapUserStore::default()));
-        let app_state = AppState::new(user_store);
+        let banned_token_store = Arc::new(RwLock::new(HashSetBannedTokenStore::default()));
+        let app_state = AppState::new(user_store, banned_token_store);
 
         let app = Application::build(app_state, test::APP_ADDRESS)
             .await
@@ -53,6 +59,17 @@ impl TestApp {
             ),
             &Url::parse(&self.address).expect("Failed to parse URL"),
         );
+    }
+
+    pub fn get_jwt_token(&self) -> String {
+        let cookie = self
+            .cookie_jar
+            .cookies(&Url::parse(&self.address).unwrap())
+            .unwrap();
+
+        let (_, token) = cookie.to_str().unwrap().split_once('=').unwrap();
+
+        token.to_owned()
     }
 
     pub async fn get_root(&self) -> reqwest::Response {

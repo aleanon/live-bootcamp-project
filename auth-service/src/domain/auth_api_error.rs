@@ -8,7 +8,10 @@ use thiserror::Error;
 
 use crate::utils::auth::TokenAuthError;
 
-use super::{data_stores::UserStoreError, user::UserError};
+use super::{
+    data_stores::{BannedTokenStoreError, UserStoreError},
+    user::UserError,
+};
 
 #[derive(Serialize, Deserialize)]
 pub struct ErrorResponse {
@@ -65,11 +68,19 @@ impl From<UserStoreError> for AuthApiError {
 impl From<TokenAuthError> for AuthApiError {
     fn from(error: TokenAuthError) -> Self {
         match error {
-            TokenAuthError::InvalidToken | TokenAuthError::TokenError(_) => {
-                AuthApiError::AuthenticationError(Box::new(error))
-            }
+            TokenAuthError::InvalidToken
+            | TokenAuthError::TokenError(_)
+            | TokenAuthError::TokenIsBanned => AuthApiError::AuthenticationError(Box::new(error)),
             TokenAuthError::MissingToken => AuthApiError::MissingToken,
             TokenAuthError::UnexpectedError => AuthApiError::UnexpectedError,
+        }
+    }
+}
+
+impl From<BannedTokenStoreError> for AuthApiError {
+    fn from(error: BannedTokenStoreError) -> Self {
+        match error {
+            BannedTokenStoreError::DatabaseError(_) => AuthApiError::UnexpectedError,
         }
     }
 }
