@@ -1,5 +1,4 @@
 mod banned_token_store;
-mod two_factor_store;
 mod user_store;
 
 pub use banned_token_store::BannedTokenStore;

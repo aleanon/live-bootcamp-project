@@ -16,7 +16,7 @@ pub async fn logout(
     let token = cookie.value().to_owned();
 
     let mut banned_token_store = app_state.banned_token_store.write().await;
-    let _result = auth::validate_token(&token, &*banned_token_store).await?;
+    let _claims = auth::validate_token(&token, &*banned_token_store).await?;
 
     banned_token_store.ban_token(token).await?;
 

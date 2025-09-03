@@ -32,12 +32,12 @@ struct IndexTemplate {
 }
 
 async fn root() -> impl IntoResponse {
-    let mut address = env::var("AUTH_SERVICE_IP").unwrap_or("localhost".to_owned());
+    let mut address = env::var("AUTH_SERVICE_URL").unwrap_or(format!("http://localhost:3000"));
     if address.is_empty() {
-        address = "localhost".to_owned();
+        address = format!("http://localhost:3000");
     }
-    let login_link = format!("http://{}:3000", address);
-    let logout_link = format!("http://{}:3000/logout", address);
+    let login_link = format!("{}/login", address);
+    let logout_link = format!("{}/logout", address);
 
     let template = IndexTemplate {
         login_link,

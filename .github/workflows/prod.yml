@@ -100,6 +100,7 @@ jobs:
             mkdir -p app
             cd app
             echo "AUTH_SERVICE_IP=${{ vars.DROPLET_IP }}" > .env
+            echo "AUTH_SERVICE_URL=${{ vars.AUTH_SERVICE_URL }}" >> .env
             echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> .env
             snap install docker
             docker compose down
