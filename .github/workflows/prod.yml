@@ -36,6 +36,8 @@ jobs:
         run: |
           cargo build --verbose
           cargo test --verbose
+        env:
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
 
       - name: Build and test auth-service code
         working-directory: ./auth-service
