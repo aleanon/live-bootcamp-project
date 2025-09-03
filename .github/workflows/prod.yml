@@ -36,14 +36,14 @@ jobs:
         run: |
           cargo build --verbose
           cargo test --verbose
-        env:
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
 
       - name: Build and test auth-service code
         working-directory: ./auth-service
         run: |
           cargo build --verbose
           cargo test --verbose
+        env:
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
 
         # Set up Docker Buildx for multi-platform builds
       - name: Set up Docker Buildx
