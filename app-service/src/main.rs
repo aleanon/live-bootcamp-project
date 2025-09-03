@@ -36,7 +36,7 @@ async fn root() -> impl IntoResponse {
     if address.is_empty() {
         address = format!("http://localhost:3000");
     }
-    let login_link = format!("{}/login", address);
+    let login_link = format!("{}/", address);
     let logout_link = format!("{}/logout", address);
 
     let template = IndexTemplate {
