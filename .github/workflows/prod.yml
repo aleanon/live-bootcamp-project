@@ -97,8 +97,8 @@ jobs:
           password: ${{ secrets.DROPLET_PASSWORD }}
           script: |
             cd ~
-            export AUTH_SERVICE_IP=${{ vars.DROPLET_IP }}
-            export JWT_SECRET=${{ secrets.JWT_SECRET }}
+            echo "AUTH_SERVICE_IP=${{ vars.DROPLET_IP }}" > .env
+            echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> .env
             snap install docker
             docker compose down
             docker compose pull
