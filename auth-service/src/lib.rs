@@ -18,7 +18,7 @@ pub struct Application {
 impl Application {
     pub async fn build(app_state: AppState, address: &str) -> Result<Self, Box<dyn Error>> {
         let allowed_origins = [
-            "http://localhost:8000".parse()?,
+            "http://127.0.0.1:8000".parse()?,
             "http://134.122.65.215:8000".parse()?,
         ];
 

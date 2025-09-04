@@ -1,5 +1,8 @@
 use axum::{extract::State, http::StatusCode, response::IntoResponse};
-use axum_extra::extract::CookieJar;
+use axum_extra::extract::{
+    cookie::{Cookie, SameSite},
+    CookieJar,
+};
 
 use crate::{
     app_state::AppState,
@@ -20,5 +23,13 @@ pub async fn logout(
 
     banned_token_store.ban_token(token).await?;
 
-    Ok((jar.remove(JWT_COOKIE_NAME), StatusCode::OK))
+    let jar = jar.remove(
+        Cookie::build((JWT_COOKIE_NAME, ""))
+            .path("/")
+            .http_only(true)
+            .same_site(SameSite::Lax)
+            .build(),
+    );
+
+    Ok((jar, StatusCode::OK))
 }

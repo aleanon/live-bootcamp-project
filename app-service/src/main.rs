@@ -32,9 +32,9 @@ struct IndexTemplate {
 }
 
 async fn root() -> impl IntoResponse {
-    let mut address = env::var("AUTH_SERVICE_URL").unwrap_or(format!("http://localhost:3000"));
+    let mut address = env::var("AUTH_SERVICE_URL").unwrap_or(format!("http://127.0.0.1:3000"));
     if address.is_empty() {
-        address = format!("http://localhost:3000");
+        address = format!("http://127.0.0.1:3000");
     }
     let login_link = format!("{}/", address);
     let logout_link = format!("{}/logout", address);
