@@ -1,6 +1,7 @@
 use std::{env, fs::File, io::Write, ops::Deref, sync::Arc};
 
 use axum::http::HeaderValue;
+use dotenvy::dotenv;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio::{io::AsyncReadExt, sync::RwLock};
@@ -57,10 +58,11 @@ impl HeaderValues {
 
 impl Default for HeaderValues {
     fn default() -> Self {
+        dotenv().ok();
         let allowed_origins = env::var("AUTH_SERVICE_ALLOWED_ORIGINS")
-            .unwrap_or("http://127.0.0.1:8000".to_owned())
+            .unwrap_or("http://127.0.0.1:8000,http://localhost:8000".to_owned())
             .split(',')
-            .filter_map(|origin| origin.to_owned().parse().ok())
+            .filter_map(|origin| origin.trim().parse().ok())
             .collect::<Vec<_>>();
 
         HeaderValues(allowed_origins)
@@ -75,7 +77,7 @@ impl Serialize for HeaderValues {
         let headers = self
             .0
             .iter()
-            .map(|header_value| header_value.to_str().unwrap_or(""))
+            .filter_map(|header_value| header_value.to_str().ok())
             .collect::<Vec<_>>();
 
         headers.serialize(serializer)
@@ -137,4 +139,20 @@ pub fn listen_for_config_updates(config: Arc<RwLock<Config>>) {
             };
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_header_values_deserialize() {
+        let json = r#"["http://example.com", "https://example.org"]"#;
+        let result = serde_json::from_str::<HeaderValues>(json);
+        assert!(result.is_ok());
+        let values = result.unwrap();
+        assert_eq!(values.len(), 2);
+        assert_eq!(values[0], HeaderValue::from_static("http://example.com"));
+        assert_eq!(values[1], HeaderValue::from_static("https://example.org"));
+    }
 }
