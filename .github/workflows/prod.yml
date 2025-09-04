@@ -102,6 +102,7 @@ jobs:
             echo "AUTH_SERVICE_IP=${{ vars.DROPLET_IP }}" > .env
             echo "AUTH_SERVICE_URL=${{ vars.AUTH_SERVICE_URL }}" >> .env
             echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> .env
+            echo AUTH_SERVICE_ALLOWED_ORIGINS=${{ secrets.AUTH_SERVICE_ALLOWED_ORIGINS }}
             snap install docker
             docker compose down
             docker compose pull

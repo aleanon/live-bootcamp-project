@@ -57,7 +57,7 @@ impl HeaderValues {
 
 impl Default for HeaderValues {
     fn default() -> Self {
-        let allowed_origins = env::var("AUTH_SERVICE_ALLOWED_ORIGIN")
+        let allowed_origins = env::var("AUTH_SERVICE_ALLOWED_ORIGINS")
             .unwrap_or("http://127.0.0.1:8000".to_owned())
             .split(',')
             .filter_map(|origin| origin.to_owned().parse().ok())
