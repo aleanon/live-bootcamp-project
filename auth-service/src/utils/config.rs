@@ -1,6 +1,7 @@
 use std::{env, fs::File, io::Write, ops::Deref, sync::Arc};
 
 use axum::http::HeaderValue;
+use dashmap::DashSet;
 use dotenvy::dotenv;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -14,27 +15,36 @@ pub enum ConfigError {
     ParseError(#[from] serde_json::Error),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Config(pub ConfigInner);
 
 impl Config {
     pub fn load() -> Self {
         let inner = match ConfigInner::load() {
-            Ok(config) => config,
+            Ok(config_inner) => config_inner,
             Err(_) => {
-                let config = ConfigInner::default();
+                let config_inner = ConfigInner::default();
                 if let Ok(mut file) = std::fs::File::create("config.json") {
-                    let serialized = serde_json::to_string_pretty(&config).unwrap_or(String::new());
+                    let serialized =
+                        serde_json::to_string_pretty(&config_inner).unwrap_or(String::new());
                     file.write_all(serialized.as_bytes()).ok();
                 };
-                config
+                config_inner
             }
         };
         Config(inner)
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Default)]
+impl Deref for Config {
+    type Target = ConfigInner;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Default, Clone)]
 pub struct ConfigInner {
     pub allowed_origins: HeaderValues,
 }
@@ -47,11 +57,11 @@ impl ConfigInner {
     }
 }
 
-#[derive(Debug)]
-pub struct HeaderValues(Vec<HeaderValue>);
+#[derive(Debug, Clone)]
+pub struct HeaderValues(Arc<DashSet<HeaderValue>>);
 
 impl HeaderValues {
-    pub fn new(headers: Vec<HeaderValue>) -> Self {
+    pub fn new(headers: Arc<DashSet<HeaderValue>>) -> Self {
         HeaderValues(headers)
     }
 }
@@ -63,9 +73,9 @@ impl Default for HeaderValues {
             .unwrap_or("http://127.0.0.1:8000,http://localhost:8000".to_owned())
             .split(',')
             .filter_map(|origin| origin.trim().parse().ok())
-            .collect::<Vec<_>>();
+            .collect::<DashSet<_>>();
 
-        HeaderValues(allowed_origins)
+        HeaderValues(Arc::new(allowed_origins))
     }
 }
 
@@ -77,8 +87,8 @@ impl Serialize for HeaderValues {
         let headers = self
             .0
             .iter()
-            .filter_map(|header_value| header_value.to_str().ok())
-            .collect::<Vec<_>>();
+            .filter_map(|header_value| header_value.to_str().and_then(|h| Ok(h.to_owned())).ok())
+            .collect::<DashSet<_>>();
 
         headers.serialize(serializer)
     }
@@ -94,12 +104,12 @@ impl<'de> Deserialize<'de> for HeaderValues {
             .filter_map(|value| value.parse().ok())
             .collect();
 
-        Ok(HeaderValues::new(headers))
+        Ok(HeaderValues::new(Arc::new(headers)))
     }
 }
 
 impl Deref for HeaderValues {
-    type Target = Vec<HeaderValue>;
+    type Target = Arc<DashSet<HeaderValue>>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -152,7 +162,7 @@ mod tests {
         assert!(result.is_ok());
         let values = result.unwrap();
         assert_eq!(values.len(), 2);
-        assert_eq!(values[0], HeaderValue::from_static("http://example.com"));
-        assert_eq!(values[1], HeaderValue::from_static("https://example.org"));
+        assert!(values.contains(&HeaderValue::from_static("http://example.com")));
+        assert!(values.contains(&HeaderValue::from_static("https://example.org")));
     }
 }

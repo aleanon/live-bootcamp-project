@@ -1,0 +1,48 @@
+use std::env;
+
+use axum::http::HeaderValue;
+use dashmap::DashSet;
+use dotenvy::dotenv;
+
+use crate::domain::data_stores::AllowedOriginsStore;
+
+#[derive(Debug, Clone)]
+pub struct DashSetAllowedOriginsStore {
+    allowed_origins: DashSet<HeaderValue>,
+}
+
+impl DashSetAllowedOriginsStore {
+    pub fn new(allowed_origins: DashSet<HeaderValue>) -> Self {
+        Self { allowed_origins }
+    }
+}
+
+impl Default for DashSetAllowedOriginsStore {
+    fn default() -> Self {
+        dotenv().ok();
+
+        let allowed_origins = env::var("AUTH_SERVICE_ALLOWED_ORIGINS")
+            .unwrap_or("http://127.0.0.1:8000,http://localhost:8000".to_owned())
+            .split(',')
+            .filter_map(|origin| origin.trim().parse().ok())
+            .collect::<DashSet<_>>();
+
+        Self { allowed_origins }
+    }
+}
+
+impl AllowedOriginsStore for DashSetAllowedOriginsStore {
+    fn contains(&self, origin: HeaderValue) -> bool {
+        self.allowed_origins.contains(&origin)
+    }
+
+    fn add_allowed_origin(&self, origin: HeaderValue) -> Result<(), String> {
+        self.allowed_origins.insert(origin);
+        Ok(())
+    }
+
+    fn remove_allowed_origin(&self, origin: HeaderValue) -> Result<(), String> {
+        self.allowed_origins.remove(&origin);
+        Ok(())
+    }
+}

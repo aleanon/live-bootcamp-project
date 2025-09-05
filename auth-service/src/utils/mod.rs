@@ -1,4 +1,4 @@
 pub mod auth;
 pub mod config;
 pub mod constants;
-pub mod dynamic_cors;
+// pub mod dynamic_cors;
