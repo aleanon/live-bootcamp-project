@@ -55,6 +55,14 @@ impl ConfigInner {
         let config: ConfigInner = serde_json::from_reader(config_file)?;
         Ok(config)
     }
+
+    pub fn update(&mut self, new_config: ConfigInner) {
+        self.allowed_origins
+            .retain(|v| new_config.allowed_origins.contains(v));
+        for origin in Arc::unwrap_or_clone(new_config.allowed_origins.0) {
+            self.allowed_origins.insert(origin);
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -145,7 +153,7 @@ pub fn listen_for_config_updates(config: Arc<RwLock<Config>>) {
                 let Ok(new_config) = serde_json::from_str::<ConfigInner>(&read_buf) else {
                     continue;
                 };
-                config.write().await.0 = new_config;
+                config.write().await.0.update(new_config);
             };
         }
     });
