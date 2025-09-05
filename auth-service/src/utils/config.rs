@@ -1,4 +1,4 @@
-use std::{env, fs::File, io::Write, ops::Deref, sync::Arc};
+use std::{fs::File, io::Write, ops::Deref, sync::Arc};
 
 use axum::http::HeaderValue;
 use dashmap::DashSet;
@@ -6,6 +6,8 @@ use dotenvy::dotenv;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio::{io::AsyncReadExt, sync::RwLock};
+
+use super::constants::AUTH_SERVICE_ALLOWED_ORIGINS;
 
 #[derive(Debug, Error)]
 pub enum ConfigError {
@@ -77,8 +79,7 @@ impl HeaderValues {
 impl Default for HeaderValues {
     fn default() -> Self {
         dotenv().ok();
-        let allowed_origins = env::var("AUTH_SERVICE_ALLOWED_ORIGINS")
-            .unwrap_or("http://127.0.0.1:8000,http://localhost:8000".to_owned())
+        let allowed_origins = AUTH_SERVICE_ALLOWED_ORIGINS
             .split(',')
             .filter_map(|origin| origin.trim().parse().ok())
             .collect::<DashSet<_>>();

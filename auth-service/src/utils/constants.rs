@@ -3,6 +3,7 @@ use std::{env as std_env, sync::LazyLock};
 
 // Define a lazily evaluated static. lazy_static is needed because std_env::var is not a const function.
 pub static JWT_SECRET: LazyLock<String> = LazyLock::new(|| set_token());
+pub static AUTH_SERVICE_ALLOWED_ORIGINS: LazyLock<String> = LazyLock::new(|| set_allowed_origins());
 
 fn set_token() -> String {
     dotenv().ok(); // Load environment variables
@@ -13,8 +14,15 @@ fn set_token() -> String {
     secret
 }
 
+fn set_allowed_origins() -> String {
+    dotenv().ok(); // Load environment variables
+    std_env::var(env::AUTH_SERVICE_ALLOWED_ORIGINS_ENV_VAR)
+        .unwrap_or("http://127.0.0.1:8000,http://localhost:8000".to_owned())
+}
+
 pub mod env {
     pub const JWT_SECRET_ENV_VAR: &str = "JWT_SECRET";
+    pub const AUTH_SERVICE_ALLOWED_ORIGINS_ENV_VAR: &str = "AUTH_SERVICE_ALLOWED_ORIGINS";
 }
 
 pub const JWT_COOKIE_NAME: &str = "jwt";

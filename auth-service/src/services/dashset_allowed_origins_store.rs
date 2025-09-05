@@ -1,10 +1,10 @@
-use std::env;
-
 use axum::http::HeaderValue;
 use dashmap::DashSet;
 use dotenvy::dotenv;
 
-use crate::domain::data_stores::AllowedOriginsStore;
+use crate::{
+    domain::data_stores::AllowedOriginsStore, utils::constants::AUTH_SERVICE_ALLOWED_ORIGINS,
+};
 
 #[derive(Debug, Clone)]
 pub struct DashSetAllowedOriginsStore {
@@ -21,8 +21,7 @@ impl Default for DashSetAllowedOriginsStore {
     fn default() -> Self {
         dotenv().ok();
 
-        let allowed_origins = env::var("AUTH_SERVICE_ALLOWED_ORIGINS")
-            .unwrap_or("http://127.0.0.1:8000,http://localhost:8000".to_owned())
+        let allowed_origins = AUTH_SERVICE_ALLOWED_ORIGINS
             .split(',')
             .filter_map(|origin| origin.trim().parse().ok())
             .collect::<DashSet<_>>();
