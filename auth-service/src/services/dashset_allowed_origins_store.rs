@@ -36,13 +36,23 @@ impl AllowedOriginsStore for DashSetAllowedOriginsStore {
         self.allowed_origins.contains(&origin)
     }
 
-    fn add_allowed_origin(&self, origin: HeaderValue) -> Result<(), String> {
-        self.allowed_origins.insert(origin);
+    fn add_allowed_origin(
+        &self,
+        origin: impl IntoIterator<Item = HeaderValue>,
+    ) -> Result<(), String> {
+        for origin in origin {
+            self.allowed_origins.insert(origin);
+        }
         Ok(())
     }
 
-    fn remove_allowed_origin(&self, origin: HeaderValue) -> Result<(), String> {
-        self.allowed_origins.remove(&origin);
+    fn remove_allowed_origin(
+        &self,
+        origin: impl IntoIterator<Item = HeaderValue>,
+    ) -> Result<(), String> {
+        for origin in origin {
+            self.allowed_origins.remove(&origin);
+        }
         Ok(())
     }
 }

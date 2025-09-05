@@ -9,6 +9,12 @@ pub enum AllowedOriginsStoreError {
 
 pub trait AllowedOriginsStore: Send + Sync {
     fn contains(&self, origin: HeaderValue) -> bool;
-    fn add_allowed_origin(&self, origin: HeaderValue) -> Result<(), String>;
-    fn remove_allowed_origin(&self, origin: HeaderValue) -> Result<(), String>;
+    fn add_allowed_origin(
+        &self,
+        origin: impl IntoIterator<Item = HeaderValue>,
+    ) -> Result<(), String>;
+    fn remove_allowed_origin(
+        &self,
+        origin: impl IntoIterator<Item = HeaderValue>,
+    ) -> Result<(), String>;
 }
