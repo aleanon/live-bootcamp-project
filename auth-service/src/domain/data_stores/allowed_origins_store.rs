@@ -1,5 +1,4 @@
 use axum::http::HeaderValue;
-use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
