@@ -16,3 +16,6 @@ compose-build-and-up:
 
 run name:
     cargo run -p {{name}}-service
+
+test:
+    cargo nextest run

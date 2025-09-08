@@ -4,7 +4,8 @@ use auth_service::{
     Application,
     app_state::AppState,
     services::{
-        hashmap_user_store::HashMapUserStore, hashset_banned_token_store::HashSetBannedTokenStore,
+        hashmap_two_fa_code_store::HashMapTwoFaCodeStore, hashmap_user_store::HashMapUserStore,
+        hashset_banned_token_store::HashSetBannedTokenStore, mock_email_client::MockEmailClient,
     },
     utils::constants::{JWT_COOKIE_NAME, test},
 };
@@ -22,13 +23,22 @@ pub struct TestApp {
     pub address: String,
     pub cookie_jar: Arc<Jar>,
     pub http_client: reqwest::Client,
+    pub two_fa_code_store: Arc<RwLock<HashMapTwoFaCodeStore>>,
 }
 
 impl TestApp {
     pub async fn new() -> Self {
         let user_store = Arc::new(RwLock::new(HashMapUserStore::default()));
         let banned_token_store = Arc::new(RwLock::new(HashSetBannedTokenStore::default()));
-        let app_state = AppState::new(user_store, banned_token_store);
+        let two_fa_code_store = Arc::new(RwLock::new(HashMapTwoFaCodeStore::default()));
+        let email_client = Arc::new(RwLock::new(MockEmailClient::default()));
+
+        let app_state = AppState::new(
+            user_store,
+            banned_token_store,
+            two_fa_code_store.clone(),
+            email_client,
+        );
 
         let app = Application::build(app_state, test::APP_ADDRESS)
             .await
@@ -48,6 +58,7 @@ impl TestApp {
             address,
             cookie_jar,
             http_client,
+            two_fa_code_store,
         }
     }
 

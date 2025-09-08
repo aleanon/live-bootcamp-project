@@ -1,16 +1,16 @@
 pub mod admin_routes;
 pub mod app_state;
 pub mod domain;
-mod routes;
+pub mod routes;
 pub mod services;
 pub mod utils;
 
 use app_state::AppState;
 use axum::{
-    http::{request, HeaderValue, Method},
+    Router,
+    http::{HeaderValue, Method, request},
     routing::post,
     serve::Serve,
-    Router,
 };
 use routes::{delete_account, login, logout, signup, verify_2fa, verify_token};
 use std::error::Error;

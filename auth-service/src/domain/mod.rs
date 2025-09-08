@@ -1,7 +1,10 @@
 pub mod auth_api_error;
 pub mod data_stores;
 pub mod email;
+pub mod email_client;
 pub mod login;
+pub mod login_attempt_id;
 pub mod password;
+pub mod two_fa_code;
 pub mod user;
 pub mod validated_user;

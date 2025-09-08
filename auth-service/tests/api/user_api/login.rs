@@ -1,10 +1,14 @@
-use auth_service::domain::{
-    auth_api_error::{AuthApiError, ErrorResponse},
-    data_stores::UserStoreError,
-    user::UserError,
+use auth_service::{
+    domain::{
+        auth_api_error::{AuthApiError, ErrorResponse},
+        data_stores::UserStoreError,
+        login_attempt_id::LoginAttemptId,
+        user::UserError,
+    },
+    routes::TwoFactorAuthResponse,
 };
 
-use crate::helpers::{get_standard_test_user, TestApp};
+use crate::helpers::{TestApp, get_standard_test_user};
 
 #[tokio::test]
 async fn login_returns_200() {
@@ -29,14 +33,48 @@ async fn login_returns_200() {
 }
 
 #[tokio::test]
+async fn should_return_206_when_2fa_enabled() {
+    let app = TestApp::new().await;
+
+    assert!(
+        app.post_signup(&get_standard_test_user(true))
+            .await
+            .status()
+            .is_success()
+    );
+
+    let body = serde_json::json!({
+        "email": "test@example.com",
+        "password": "password"
+    });
+
+    let response = app.login(&body).await;
+
+    assert_eq!(response.status().as_u16(), 206);
+
+    let response = response
+        .json::<TwoFactorAuthResponse>()
+        .await
+        .expect("Failed to parse response");
+
+    assert_eq!(&response.message, "2FA required");
+
+    let login_id = LoginAttemptId::parse(&response.login_attempt_id).expect("Invalid code");
+
+    let two_fa_code_store = app.two_fa_code_store.read().await;
+    assert!(two_fa_code_store.has_login_attempt_id(&login_id))
+}
+
+#[tokio::test]
 async fn should_return_400_whith_invalid_email() {
     let app = TestApp::new().await;
 
-    assert!(app
-        .post_signup(&get_standard_test_user(false))
-        .await
-        .status()
-        .is_success());
+    assert!(
+        app.post_signup(&get_standard_test_user(false))
+            .await
+            .status()
+            .is_success()
+    );
 
     let body = serde_json::json!({
         "email": "test@example.c",
@@ -60,11 +98,12 @@ async fn should_return_400_whith_invalid_email() {
 async fn should_return_400_whith_invalid_password() {
     let app = TestApp::new().await;
 
-    assert!(app
-        .post_signup(&get_standard_test_user(false))
-        .await
-        .status()
-        .is_success());
+    assert!(
+        app.post_signup(&get_standard_test_user(false))
+            .await
+            .status()
+            .is_success()
+    );
 
     let body = serde_json::json!({
         "email": "test@example.com",
@@ -88,11 +127,12 @@ async fn should_return_400_whith_invalid_password() {
 async fn should_return_401_with_wrong_password() {
     let app = TestApp::new().await;
 
-    assert!(app
-        .post_signup(&get_standard_test_user(false))
-        .await
-        .status()
-        .is_success());
+    assert!(
+        app.post_signup(&get_standard_test_user(false))
+            .await
+            .status()
+            .is_success()
+    );
 
     let body = serde_json::json!({
         "email": "test@example.com",
@@ -116,11 +156,12 @@ async fn should_return_401_with_wrong_password() {
 async fn should_return_401_with_unregistered_email() {
     let app = TestApp::new().await;
 
-    assert!(app
-        .post_signup(&get_standard_test_user(false))
-        .await
-        .status()
-        .is_success());
+    assert!(
+        app.post_signup(&get_standard_test_user(false))
+            .await
+            .status()
+            .is_success()
+    );
 
     let body = serde_json::json!({
         "email": "unregistered@example.com",
@@ -144,11 +185,12 @@ async fn should_return_401_with_unregistered_email() {
 async fn should_return_422_with_malformed_input() {
     let app = TestApp::new().await;
 
-    assert!(app
-        .post_signup(&get_standard_test_user(false))
-        .await
-        .status()
-        .is_success());
+    assert!(
+        app.post_signup(&get_standard_test_user(false))
+            .await
+            .status()
+            .is_success()
+    );
 
     let body = serde_json::json!({
         "emal": "test@example.com",

@@ -1,7 +1,7 @@
 use axum::{
+    Json,
     http::StatusCode,
     response::{IntoResponse, Response},
-    Json,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -9,7 +9,8 @@ use thiserror::Error;
 use crate::utils::auth::TokenAuthError;
 
 use super::{
-    data_stores::{BannedTokenStoreError, UserStoreError},
+    data_stores::{BannedTokenStoreError, TwoFaCodeStoreError, UserStoreError},
+    email_client::EmailClientError,
     user::UserError,
 };
 
@@ -81,6 +82,26 @@ impl From<BannedTokenStoreError> for AuthApiError {
     fn from(error: BannedTokenStoreError) -> Self {
         match error {
             BannedTokenStoreError::DatabaseError(_) => AuthApiError::UnexpectedError,
+        }
+    }
+}
+
+impl From<TwoFaCodeStoreError> for AuthApiError {
+    fn from(error: TwoFaCodeStoreError) -> Self {
+        match error {
+            TwoFaCodeStoreError::UnexpectedError => AuthApiError::UnexpectedError,
+            TwoFaCodeStoreError::UserNotFound => AuthApiError::UnexpectedError,
+            TwoFaCodeStoreError::InvalidSession | TwoFaCodeStoreError::Invalid2FACode => {
+                AuthApiError::AuthenticationError(Box::new(error))
+            }
+        }
+    }
+}
+
+impl From<EmailClientError> for AuthApiError {
+    fn from(error: EmailClientError) -> Self {
+        match error {
+            EmailClientError::UnexpectedError => AuthApiError::UnexpectedError,
         }
     }
 }

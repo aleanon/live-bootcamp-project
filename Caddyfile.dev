@@ -1,7 +1,12 @@
 
-127.0.0.1:8080 {
+http://127.0.0.1:8080 {
+
 
     handle_path /auth/* {
+        reverse_proxy auth-service:3000
+    }
+
+    handle /auth {
         reverse_proxy auth-service:3000
     }
 
