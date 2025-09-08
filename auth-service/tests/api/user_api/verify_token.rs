@@ -1,6 +1,10 @@
-use reqwest::{cookie::CookieStore, Url};
+use auth_service::{
+    domain::auth_api_error::{AuthApiError, ErrorResponse},
+    utils::auth::TokenAuthError,
+};
+use reqwest::{Url, cookie::CookieStore};
 
-use crate::helpers::{get_standard_test_user, TestApp};
+use crate::helpers::{TestApp, get_standard_test_user};
 
 #[tokio::test]
 async fn should_return_200_with_valid_token() {
@@ -45,7 +49,7 @@ async fn should_return_401_if_token_is_invalid() {
 async fn should_return_401_if_token_is_banned() {
     let app = TestApp::new().await;
 
-    let body = get_standard_test_user(true);
+    let body = get_standard_test_user(false);
     assert!(app.post_signup(&body).await.status().is_success());
 
     let response = app.login(&body).await;
@@ -62,6 +66,14 @@ async fn should_return_401_if_token_is_banned() {
     let response = app.verify_token(&body).await;
 
     assert_eq!(response.status().as_u16(), 401);
+    assert_eq!(
+        response
+            .json::<ErrorResponse>()
+            .await
+            .expect("failed to parse error response")
+            .error,
+        AuthApiError::AuthenticationError(Box::new(TokenAuthError::TokenIsBanned)).to_string()
+    )
 }
 
 #[tokio::test]

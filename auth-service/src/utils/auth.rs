@@ -1,9 +1,9 @@
 use axum_extra::extract::{
-    cookie::{Cookie, SameSite},
     CookieJar,
+    cookie::{Cookie, SameSite},
 };
 use chrono::Utc;
-use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Validation};
+use jsonwebtoken::{DecodingKey, EncodingKey, Validation, decode, encode};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -43,6 +43,7 @@ fn create_auth_cookie(token: String) -> Cookie<'static> {
     Cookie::build((JWT_COOKIE_NAME, token))
         .path("/") // apply cookie to all URLs on the server
         .http_only(true) // prevent JavaScript from accessing the cookie
+        .secure(true)
         .same_site(SameSite::Lax) // send cookie with "same-site" requests, and with "cross-site" top-level navigations.
         .build()
 }

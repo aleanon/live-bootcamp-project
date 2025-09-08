@@ -15,4 +15,4 @@ compose-build-and-up:
     docker compose -f compose.dev.yml build && docker compose -f compose.dev.yml up -d
 
 run name:
-    cd {{name}}-service/ && cargo run
+    cargo run -p {{name}}-service

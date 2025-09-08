@@ -1,0 +1,24 @@
+services:
+  app-service:
+    image: aleanton/app-service
+    restart: "always"
+    environment:
+      AUTH_SERVICE_IP: ${AUTH_SERVICE_IP:-localhost}
+      AUTH_SERVICE_URL: ${AUTH_SERVICE_URL:-http://localhost:3000}
+    build:
+      context: .
+      dockerfile: ./app-service/Dockerfile
+    ports:
+      - "8000:8000"
+
+  auth-service:
+    image: aleanton/auth-service
+    restart: "always"
+    environment:
+      JWT_SECRET: ${JWT_SECRET}
+      AUTH_SERVICE_ALLOWED_ORIGINS: ${AUTH_SERVICE_ALLOWED_ORIGINS}
+    build:
+      context: .
+      dockerfile: ./auth-service/Dockerfile
+    ports:
+      - "3000:3000"

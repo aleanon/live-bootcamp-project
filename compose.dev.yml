@@ -1,22 +1,53 @@
 services:
   app-service:
-    image: aleanton/app-service
-    restart: "always"
-    environment:
-      AUTH_SERVICE_IP: ${AUTH_SERVICE_IP:-localhost}
-      AUTH_SERVICE_URL: ${AUTH_SERVICE_URL:-http://localhost:3000}
+    image: aleanton/app-service # specify name of image on Docker Hub
+    restart: "always" # automatically restart container when server crashes
     build:
-      context: ./app-service
-    ports:
-      - "8000:8000"
+      context: .
+      dockerfile: ./app-service/Dockerfile
+    environment: # set up environment variables
+      AUTH_SERVICE_IP: ${AUTH_SERVICE_IP:-localhost} # Use localhost as the default value
+      AUTH_SERVICE_URL: ${AUTH_SERVICE_URL:-http://localhost:3000}
+
+    expose:
+      - "8000" # expose port 8000 so that applications outside the container can connect to it
+    networks:
+      - backend
+    depends_on: # only run app-service after auth-service has started
+      caddy:
+        condition: service_started
 
   auth-service:
     image: aleanton/auth-service
-    restart: "always"
+    restart: "always" # automatically restart container when server crashes
+    build:
+      context: .
+      dockerfile: ./auth-service/Dockerfile
     environment:
       JWT_SECRET: ${JWT_SECRET}
       AUTH_SERVICE_ALLOWED_ORIGINS: ${AUTH_SERVICE_ALLOWED_ORIGINS}
-    build:
-      context: ./auth-service
+    expose:
+      - "3000" # expose port 3000 so that applications outside the container can connect to it
+    networks:
+      - backend
+    depends_on:
+      caddy:
+        condition: service_started
+
+  caddy:
+    image: caddy:2
+    volumes:
+      - ./Caddyfile.dev:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
     ports:
-      - "3000:3000"
+      - "8080:8080"
+    networks:
+      - backend
+
+volumes:
+  caddy_data:
+  caddy_config:
+
+networks:
+  backend:

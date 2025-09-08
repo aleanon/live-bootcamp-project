@@ -1,17 +1,17 @@
 use std::sync::Arc;
 
 use auth_service::{
+    Application,
     app_state::AppState,
     services::{
         hashmap_user_store::HashMapUserStore, hashset_banned_token_store::HashSetBannedTokenStore,
     },
-    utils::constants::{test, JWT_COOKIE_NAME},
-    Application,
+    utils::constants::{JWT_COOKIE_NAME, test},
 };
 
 use reqwest::{
-    cookie::{CookieStore, Jar},
     Url,
+    cookie::{CookieStore, Jar},
 };
 use serde::Serialize;
 use serde_json::Value;
@@ -54,7 +54,7 @@ impl TestApp {
     pub fn add_invalid_cookie(&self) {
         self.cookie_jar.add_cookie_str(
             &format!(
-                "{}=invalid; HttpOnly; SameSite=Lax; Path=/",
+                "{}=invalid; HttpOnly; SameSite=Lax; Secure; Path=/",
                 JWT_COOKIE_NAME
             ),
             &Url::parse(&self.address).expect("Failed to parse URL"),

@@ -1,6 +1,8 @@
+use std::fmt::Debug;
+
 use super::user::UserError;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub struct Password(String);
 
 impl TryFrom<String> for Password {
@@ -12,5 +14,11 @@ impl TryFrom<String> for Password {
         } else {
             Ok(Password(value))
         }
+    }
+}
+
+impl Debug for Password {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Password(*Masked*)")
     }
 }

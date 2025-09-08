@@ -1,3 +1,7 @@
+www.mercurium.online {
+    redir https://mercurium.online permanent
+}
+
 
 mercurium.online {
 
@@ -12,6 +16,10 @@ mercurium.online {
 
     handle_path /auth {
         reverse_proxy auth-service:3000
+    }
+
+    handle_path /app {
+        reverse_proxy app-service:8000
     }
 
     handle /* {
