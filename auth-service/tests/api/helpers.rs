@@ -3,6 +3,8 @@ use std::sync::Arc;
 use auth_service::{
     Application,
     app_state::AppState,
+    domain::{data_stores::TwoFaCodeStore, email::Email},
+    routes::Verify2FARequest,
     services::{
         hashmap_two_fa_code_store::HashMapTwoFaCodeStore, hashmap_user_store::HashMapUserStore,
         hashset_banned_token_store::HashSetBannedTokenStore, mock_email_client::MockEmailClient,
@@ -24,6 +26,7 @@ pub struct TestApp {
     pub cookie_jar: Arc<Jar>,
     pub http_client: reqwest::Client,
     pub two_fa_code_store: Arc<RwLock<HashMapTwoFaCodeStore>>,
+    pub banned_token_store: Arc<RwLock<HashSetBannedTokenStore>>,
 }
 
 impl TestApp {
@@ -35,7 +38,7 @@ impl TestApp {
 
         let app_state = AppState::new(
             user_store,
-            banned_token_store,
+            banned_token_store.clone(),
             two_fa_code_store.clone(),
             email_client,
         );
@@ -59,6 +62,26 @@ impl TestApp {
             cookie_jar,
             http_client,
             two_fa_code_store,
+            banned_token_store,
+        }
+    }
+
+    pub async fn get_verify_two_fa_request(&self, body: &Value) -> Verify2FARequest {
+        let email = Email::try_from(body["email"].as_str().unwrap().to_string())
+            .expect("Failed to parse Email address");
+
+        let (login_attempt_id, code) = self
+            .two_fa_code_store
+            .read()
+            .await
+            .get_login_attempt_id_and_two_fa_code(&email)
+            .await
+            .expect("Failed to get login attempt id and two fa code");
+
+        Verify2FARequest {
+            email: email.as_ref().to_string(),
+            login_attempt_id: login_attempt_id.to_string(),
+            two_factor_code: code.to_string(),
         }
     }
 
@@ -120,10 +143,10 @@ impl TestApp {
             .expect("Failed to execute request")
     }
 
-    pub async fn verify_2fa(&self, _code: String) -> reqwest::Response {
+    pub async fn verify_2fa<Body: Serialize>(&self, body: &Body) -> reqwest::Response {
         self.http_client
             .post(&format!("{}/verify-2fa", &self.address))
-            // .json(&format!("code:{}", code))
+            .json(body)
             .send()
             .await
             .expect("Failed to execute request")

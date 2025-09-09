@@ -1,6 +1,6 @@
 use axum::{Json, extract::State, http::StatusCode, response::IntoResponse};
 use axum_extra::extract::CookieJar;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::{
     app_state::AppState,
@@ -11,7 +11,7 @@ use crate::{
     utils::auth,
 };
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Verify2FARequest {
     pub email: String,
     #[serde(rename = "loginAttemptId")]
@@ -22,20 +22,32 @@ pub struct Verify2FARequest {
 
 pub async fn verify_2fa(
     State(app_state): State<AppState>,
-    Json(request): Json<Verify2FARequest>,
     jar: CookieJar,
+    Json(request): Json<Verify2FARequest>,
 ) -> Result<impl IntoResponse, AuthApiError> {
     let email = Email::try_from(request.email)?;
-    let login_attempt_id = LoginAttemptId::parse(&request.login_attempt_id).map_err(
-        )),
-    )?;
-    let two_factor_code = TwoFaCode::parse(request.two_factor_code.clone())?;
+    let login_attempt_id = LoginAttemptId::parse(&request.login_attempt_id)?;
+    let two_fa_code = TwoFaCode::parse(request.two_factor_code.clone())?;
 
-    app_state
+    let (stored_attempt_id, stored_two_fa_code) = app_state
         .two_fa_code_store
         .read()
         .await
-        .validate(&email, &login_attempt_id, &two_factor_code)
+        .get_login_attempt_id_and_two_fa_code(&email)
+        .await?;
+
+    if stored_attempt_id != login_attempt_id {
+        return Err(AuthApiError::InvalidLoginAttemptId);
+    }
+    if stored_two_fa_code != two_fa_code {
+        return Err(AuthApiError::InvalidTwoFaCode);
+    }
+
+    app_state
+        .two_fa_code_store
+        .write()
+        .await
+        .delete(&email)
         .await?;
 
     let auth_cookie = auth::generate_auth_cookie(&email)?;

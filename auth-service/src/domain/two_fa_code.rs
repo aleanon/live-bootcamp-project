@@ -1,5 +1,7 @@
 use std::ops::Deref;
 
+use super::two_fa_error::TwoFaError;
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct TwoFaCode(String);
 
@@ -15,9 +17,9 @@ impl TwoFaCode {
         TwoFaCode(code)
     }
 
-    pub fn parse(code: String) -> Result<Self, String> {
+    pub fn parse(code: String) -> Result<Self, TwoFaError> {
         if code.len() != 6 || !code.chars().all(|c| c.is_numeric()) {
-            Err("Invalid format".to_string())
+            Err(TwoFaError::InvalidTwoFaCode)
         } else {
             Ok(TwoFaCode(code.to_string()))
         }

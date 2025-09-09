@@ -85,10 +85,6 @@ async fn handle_no_2fa(
     Ok((jar, (StatusCode::OK, Json(LoginResponse::RegularAuth))))
 }
 
-//...
-
-// The login route can return 2 possible success responses.
-// This enum models each response!
 #[derive(Debug, Serialize)]
 #[serde(untagged)]
 pub enum LoginResponse {
@@ -96,7 +92,6 @@ pub enum LoginResponse {
     TwoFactorAuth(TwoFactorAuthResponse),
 }
 
-// If a user requires 2FA, this JSON body should be returned!
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TwoFactorAuthResponse {
     pub message: String,

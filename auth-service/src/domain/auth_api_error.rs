@@ -11,6 +11,7 @@ use crate::utils::auth::TokenAuthError;
 use super::{
     data_stores::{BannedTokenStoreError, TwoFaCodeStoreError, UserStoreError},
     email_client::EmailClientError,
+    two_fa_error::TwoFaError,
     user::UserError,
 };
 
@@ -25,12 +26,16 @@ pub enum AuthApiError {
     UserNotFound,
     #[error("User already exists")]
     UserAlreadyExists,
-    #[error("Invalid credentials: {0}")]
-    InvalidCredentials(#[from] UserError),
+    #[error("Invalid input: {0}")]
+    InvalidInput(Box<dyn std::error::Error + Send + Sync>),
     #[error("Missing token")]
     MissingToken,
     #[error("Authentication failed: {0}")]
     AuthenticationError(Box<dyn std::error::Error + Send + Sync>),
+    #[error("Invalid login attempt ID")]
+    InvalidLoginAttemptId,
+    #[error("Invalid two-factor authentication code")]
+    InvalidTwoFaCode,
     #[error("Unexpected error")]
     UnexpectedError,
 }
@@ -38,12 +43,14 @@ pub enum AuthApiError {
 impl IntoResponse for AuthApiError {
     fn into_response(self) -> Response {
         let (status_code, error_message) = match self {
-            AuthApiError::UserNotFound => (StatusCode::UNAUTHORIZED, self.to_string()),
-            AuthApiError::InvalidCredentials(_) | AuthApiError::MissingToken => {
+            AuthApiError::InvalidInput(_) | AuthApiError::MissingToken => {
                 (StatusCode::BAD_REQUEST, self.to_string())
             }
             AuthApiError::UserAlreadyExists => (StatusCode::CONFLICT, self.to_string()),
-            AuthApiError::AuthenticationError(_) => (StatusCode::UNAUTHORIZED, self.to_string()),
+            AuthApiError::AuthenticationError(_)
+            | AuthApiError::UserNotFound
+            | AuthApiError::InvalidLoginAttemptId
+            | AuthApiError::InvalidTwoFaCode => (StatusCode::UNAUTHORIZED, self.to_string()),
             AuthApiError::UnexpectedError => (StatusCode::INTERNAL_SERVER_ERROR, self.to_string()),
         };
 
@@ -52,6 +59,16 @@ impl IntoResponse for AuthApiError {
         });
 
         (status_code, body).into_response()
+    }
+}
+
+impl From<UserError> for AuthApiError {
+    fn from(error: UserError) -> Self {
+        match error {
+            UserError::InvalidEmail | UserError::InvalidPassword => {
+                AuthApiError::InvalidInput(Box::new(error))
+            }
+        }
     }
 }
 
@@ -90,8 +107,8 @@ impl From<TwoFaCodeStoreError> for AuthApiError {
     fn from(error: TwoFaCodeStoreError) -> Self {
         match error {
             TwoFaCodeStoreError::UnexpectedError => AuthApiError::UnexpectedError,
-            TwoFaCodeStoreError::UserNotFound => AuthApiError::UnexpectedError,
-            TwoFaCodeStoreError::InvalidSession | TwoFaCodeStoreError::Invalid2FACode => {
+            TwoFaCodeStoreError::UserNotFound => AuthApiError::UserNotFound,
+            TwoFaCodeStoreError::InvalidAttemptId | TwoFaCodeStoreError::Invalid2FACode => {
                 AuthApiError::AuthenticationError(Box::new(error))
             }
         }
@@ -102,6 +119,16 @@ impl From<EmailClientError> for AuthApiError {
     fn from(error: EmailClientError) -> Self {
         match error {
             EmailClientError::UnexpectedError => AuthApiError::UnexpectedError,
+        }
+    }
+}
+
+impl From<TwoFaError> for AuthApiError {
+    fn from(error: TwoFaError) -> Self {
+        match error {
+            TwoFaError::InvalidTwoFaCode | TwoFaError::InvalidLoginAttemptID => {
+                AuthApiError::InvalidInput(Box::new(error))
+            }
         }
     }
 }

@@ -1,6 +1,8 @@
 default:
     @just --list
 
+compose:
+    docker compose -f compose.dev.yml build && docker compose -f compose.dev.yml down && docker compose -f compose.dev.yml up -d
 
 compose-up:
     docker compose -f compose.dev.yml up -d
@@ -11,11 +13,12 @@ compose-down:
 compose-build:
     docker compose -f compose.dev.yml build
 
-compose-build-and-up:
-    docker compose -f compose.dev.yml build && docker compose -f compose.dev.yml up -d
 
 run name:
     cargo run -p {{name}}-service
+
+log name:
+    docker logs live-bootcamp-project-{{name}}-1
 
 test:
     cargo nextest run

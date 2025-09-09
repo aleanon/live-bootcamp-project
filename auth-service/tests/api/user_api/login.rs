@@ -90,7 +90,7 @@ async fn should_return_400_whith_invalid_email() {
             .await
             .expect("Unable to parse Error response")
             .error,
-        AuthApiError::InvalidCredentials(UserError::InvalidEmail).to_string()
+        AuthApiError::InvalidInput(Box::new(UserError::InvalidEmail)).to_string()
     )
 }
 
@@ -119,7 +119,7 @@ async fn should_return_400_whith_invalid_password() {
             .await
             .expect("Unable to parse Error response")
             .error,
-        AuthApiError::InvalidCredentials(UserError::InvalidPassword).to_string()
+        AuthApiError::InvalidInput(Box::new(UserError::InvalidPassword)).to_string()
     )
 }
 

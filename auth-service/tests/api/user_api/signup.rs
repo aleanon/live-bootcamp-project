@@ -3,7 +3,7 @@ use auth_service::domain::{
     user::UserError,
 };
 
-use crate::helpers::{get_random_email, TestApp};
+use crate::helpers::{TestApp, get_random_email};
 
 #[tokio::test]
 async fn signup_should_return_201_with_valid_input() {
@@ -47,7 +47,7 @@ async fn should_return_400_if_invalid_email() {
                 .await
                 .expect("Could not deserialize response body to ErrorResponse")
                 .error,
-            AuthApiError::InvalidCredentials(UserError::InvalidEmail).to_string()
+            AuthApiError::InvalidInput(Box::new(UserError::InvalidEmail)).to_string()
         );
     }
 }
@@ -74,7 +74,7 @@ async fn signup_should_return_400_if_invalid_password() {
                 .await
                 .expect("Could not deserialize to error response")
                 .error,
-            AuthApiError::InvalidCredentials(UserError::InvalidPassword).to_string()
+            AuthApiError::InvalidInput(Box::new(UserError::InvalidPassword)).to_string()
         )
     }
 

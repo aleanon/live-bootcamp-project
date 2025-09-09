@@ -6,5 +6,6 @@ pub mod login;
 pub mod login_attempt_id;
 pub mod password;
 pub mod two_fa_code;
+pub mod two_fa_error;
 pub mod user;
 pub mod validated_user;

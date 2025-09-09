@@ -2,6 +2,8 @@ use std::{fmt::Display, ops::Deref};
 
 use uuid::Uuid;
 
+use super::two_fa_error::TwoFaError;
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct LoginAttemptId(Uuid);
 
@@ -11,8 +13,10 @@ impl LoginAttemptId {
         LoginAttemptId(id)
     }
 
-    pub fn parse(id: &str) -> Result<Self, uuid::Error> {
-        Ok(LoginAttemptId(Uuid::parse_str(id)?))
+    pub fn parse(id: &str) -> Result<Self, TwoFaError> {
+        Ok(LoginAttemptId(
+            Uuid::parse_str(id).map_err(|_| TwoFaError::InvalidLoginAttemptID)?,
+        ))
     }
 }
 

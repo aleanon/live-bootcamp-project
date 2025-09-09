@@ -32,16 +32,16 @@ impl TwoFaCodeStore for HashMapTwoFaCodeStore {
     async fn store_code(
         &mut self,
         user_id: Email,
-        session_id: LoginAttemptId,
+        login_attempt_id: LoginAttemptId,
         two_fa_code: TwoFaCode,
     ) -> Result<(), TwoFaCodeStoreError> {
         if self.codes.contains_key(&user_id) {
             self.codes.entry(user_id).and_modify(|(id, code)| {
-                *id = session_id;
+                *id = login_attempt_id;
                 *code = two_fa_code;
             });
         } else {
-            self.codes.insert(user_id, (session_id, two_fa_code));
+            self.codes.insert(user_id, (login_attempt_id, two_fa_code));
         }
         Ok(())
     }
@@ -49,20 +49,30 @@ impl TwoFaCodeStore for HashMapTwoFaCodeStore {
     async fn validate(
         &self,
         user_id: &Email,
-        session_id: &LoginAttemptId,
+        login_attempt_id: &LoginAttemptId,
         two_fa_code: &TwoFaCode,
     ) -> Result<(), TwoFaCodeStoreError> {
         let Some((id, code)) = self.codes.get(user_id) else {
             return Err(TwoFaCodeStoreError::UserNotFound);
         };
 
-        if id != session_id {
-            return Err(TwoFaCodeStoreError::InvalidSession);
+        if id != login_attempt_id {
+            return Err(TwoFaCodeStoreError::InvalidAttemptId);
         }
         if code != two_fa_code {
             return Err(TwoFaCodeStoreError::Invalid2FACode);
         }
         Ok(())
+    }
+
+    async fn get_login_attempt_id_and_two_fa_code(
+        &self,
+        user_id: &Email,
+    ) -> Result<(LoginAttemptId, TwoFaCode), TwoFaCodeStoreError> {
+        let Some((id, code)) = self.codes.get(user_id) else {
+            return Err(TwoFaCodeStoreError::UserNotFound);
+        };
+        Ok((id.clone(), code.clone()))
     }
 
     async fn delete(&mut self, user_id: &Email) -> Result<(), TwoFaCodeStoreError> {
@@ -130,7 +140,7 @@ mod tests {
             store
                 .validate(&user_id, &LoginAttemptId::new(), &two_fa_code)
                 .await,
-            Err(TwoFaCodeStoreError::InvalidSession)
+            Err(TwoFaCodeStoreError::InvalidAttemptId)
         );
     }
 
