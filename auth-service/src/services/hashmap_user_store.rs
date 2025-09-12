@@ -4,8 +4,7 @@ use crate::domain::{
     data_stores::{UserStore, UserStoreError},
     email::Email,
     password::Password,
-    user::User,
-    validated_user::ValidatedUser,
+    user::{User, ValidatedUser},
 };
 
 #[derive(Debug, Default)]
@@ -24,7 +23,7 @@ impl UserStore for HashMapUserStore {
         Ok(())
     }
 
-    async fn validate_user(
+    async fn authenticate_user(
         &self,
         email: &Email,
         password: &Password,
@@ -41,9 +40,9 @@ impl UserStore for HashMapUserStore {
         self.users.get(email).ok_or(UserStoreError::UserNotFound)
     }
 
-    async fn delete_user(&mut self, user: &ValidatedUser) -> Result<(), UserStoreError> {
+    async fn delete_user(&mut self, user: &Email) -> Result<(), UserStoreError> {
         self.users
-            .remove(user.email())
+            .remove(user)
             .map(|_| ())
             .ok_or(UserStoreError::UserNotFound)
     }
@@ -111,16 +110,18 @@ mod tests {
         .unwrap();
         let mut user_store = HashMapUserStore::default();
         assert!(user_store.add_user(user.clone()).await.is_ok());
-        assert!(user_store
-            .validate_user(
-                user.email(),
-                &Password::try_from("passwordpassword".to_string()).unwrap()
-            )
-            .await
-            .is_ok());
+        assert!(
+            user_store
+                .authenticate_user(
+                    user.email(),
+                    &Password::try_from("passwordpassword".to_string()).unwrap()
+                )
+                .await
+                .is_ok()
+        );
         assert_eq!(
             user_store
-                .validate_user(
+                .authenticate_user(
                     user.email(),
                     &Password::try_from("wrongpassword".to_string()).unwrap()
                 )
@@ -139,11 +140,7 @@ mod tests {
         .unwrap();
         let mut user_store = HashMapUserStore::default();
         assert!(user_store.add_user(user.clone()).await.is_ok());
-        let validated_user = user_store
-            .validate_user(user.email(), user.password())
-            .await
-            .expect("Unable to validate user");
-        assert!(user_store.delete_user(&validated_user).await.is_ok());
+        assert!(user_store.delete_user(user.email()).await.is_ok());
         assert!(user_store.get_user(user.email()).await.is_err());
     }
 }

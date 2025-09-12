@@ -201,6 +201,60 @@ paths:
                 properties:
                   error:
                     type: string
+    delete:
+      summary: Verify 2FA for account deletion
+      description: Validates the 2FA code, deletes the account and logs the user out,
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+                loginAttemptId:
+                  type: string
+                2FACode:
+                  type: string
+      responses:
+        "204":
+          description: 2FA token verified successfully, account deleted
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+                example: jwt=your_token; HttpOnly; SameSite=Lax; Secure; Path=/
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+        "401":
+          description: Authentication failed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+        "422":
+          description: Unprocessable content
+        "500":
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
 
   /logout:
     post:
@@ -286,7 +340,7 @@ paths:
                     type: string
 
   /delete-account:
-    post:
+    delete:
       summary: Delete account
       description: Deletes the account with the provided email and matching password
       requestBody:
@@ -302,10 +356,8 @@ paths:
                 password:
                   type: string
                   format: password
-                requires2FA:
-                  type: boolean
       responses:
-        "200":
+        "204":
           description: Account deleted
         "400":
           description: Invalid user credentials
@@ -327,6 +379,112 @@ paths:
                     type: string
         "422":
           description: Unprocessable content
+        "500":
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+
+  /forgot-password:
+    post:
+      summary: Reset password
+      description: Resets the password for the account with the provided email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+      responses:
+        "200":
+          description: Success, inststruction email sent
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        "400":
+          description: Invalid email
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+        "401":
+          description: User not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+        "422":
+          description: Unprocessable content
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+        "500":
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+
+  /reset-password:
+    post:
+      summary: Reset password
+      description: Resets the password for the account with
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                newPassword:
+                  type: string
+                  format: password
+                token:
+                  type: string
+      responses:
+        "200":
+          description: Password reset successfully, sending email with new password
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        "401":
+          description: Invalid JWT token
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
         "500":
           description: Unexpected error
           content:

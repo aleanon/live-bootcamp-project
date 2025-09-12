@@ -4,12 +4,12 @@ use auth_service::{
     Application,
     app_state::AppState,
     domain::{data_stores::TwoFaCodeStore, email::Email},
-    routes::Verify2FARequest,
+    requests::verify_2fa::Verify2FARequest,
     services::{
         hashmap_two_fa_code_store::HashMapTwoFaCodeStore, hashmap_user_store::HashMapUserStore,
         hashset_banned_token_store::HashSetBannedTokenStore, mock_email_client::MockEmailClient,
     },
-    utils::constants::{JWT_COOKIE_NAME, test},
+    utils::constants::{JWT_COOKIE_NAME, JWT_ELEVATED_COOKIE_NAME, test},
 };
 
 use reqwest::{
@@ -106,6 +106,20 @@ impl TestApp {
         token.to_owned()
     }
 
+    pub fn get_elevated_jwt_token(&self) -> Option<String> {
+        self.cookie_jar
+            .cookies(&Url::parse(&self.address).unwrap())?
+            .to_str()
+            .expect("Unable to make cookie into &str")
+            .split(';')
+            .map(|c| c.trim())
+            .find(|c| c.starts_with(JWT_ELEVATED_COOKIE_NAME))
+            .and_then(|c| {
+                c.split_once('=')
+                    .and_then(|(_, token)| Some(token.to_owned()))
+            })
+    }
+
     pub async fn get_root(&self) -> reqwest::Response {
         self.http_client
             .get(&format!("{}/", &self.address))
@@ -161,9 +175,17 @@ impl TestApp {
             .expect("Failed to execute request")
     }
 
-    pub async fn delete_account<Body: Serialize>(&self, body: &Body) -> reqwest::Response {
+    pub async fn delete_account(&self) -> reqwest::Response {
         self.http_client
-            .post(&format!("{}/delete-account", &self.address))
+            .delete(&format!("{}/delete-account", &self.address))
+            .send()
+            .await
+            .expect("Failed to execute request")
+    }
+
+    pub async fn post_elevate<Body: Serialize>(&self, body: &Body) -> reqwest::Response {
+        self.http_client
+            .post(&format!("{}/elevate", &self.address))
             .json(body)
             .send()
             .await

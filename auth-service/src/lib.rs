@@ -1,6 +1,8 @@
 pub mod admin_routes;
 pub mod app_state;
 pub mod domain;
+pub mod requests;
+pub mod responses;
 pub mod routes;
 pub mod services;
 pub mod utils;
@@ -9,10 +11,10 @@ use app_state::AppState;
 use axum::{
     Router,
     http::{HeaderValue, Method, request},
-    routing::post,
+    routing::{delete, post},
     serve::Serve,
 };
-use routes::{delete_account, login, logout, signup, verify_2fa, verify_token};
+use routes::{delete_account, elevate, login, logout, signup, verify_token, verify_two_fa};
 use std::error::Error;
 use tower_http::{
     cors::{AllowOrigin, CorsLayer},
@@ -44,9 +46,10 @@ impl Application {
             .route("/signup", post(signup))
             .route("/login", post(login))
             .route("/logout", post(logout))
-            .route("/verify-2fa", post(verify_2fa))
+            .route("/verify-2fa", post(verify_two_fa))
             .route("/verify-token", post(verify_token))
-            .route("/delete-account", post(delete_account))
+            .route("/elevate", post(elevate))
+            .route("/delete-account", delete(delete_account))
             .layer(cors)
             .with_state(app_state);
 

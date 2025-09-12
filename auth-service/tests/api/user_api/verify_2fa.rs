@@ -1,6 +1,6 @@
 use auth_service::{
     domain::auth_api_error::{AuthApiError, ErrorResponse},
-    routes::Verify2FARequest,
+    requests::verify_2fa::Verify2FARequest,
     utils::auth,
 };
 
@@ -32,7 +32,7 @@ async fn should_return_200() {
     let response = app.verify_2fa(&body).await;
     let token = app.get_jwt_token();
     let banned_token_store = app.banned_token_store.read().await;
-    auth::validate_token(&token, &*banned_token_store)
+    auth::validate_auth_token(&token, &*banned_token_store)
         .await
         .expect("Invalid auth token");
 

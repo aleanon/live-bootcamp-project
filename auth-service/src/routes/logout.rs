@@ -1,26 +1,34 @@
-use axum::{extract::State, http::StatusCode, response::IntoResponse};
+use axum::{extract::State, http::StatusCode};
 use axum_extra::extract::{CookieJar, cookie::Cookie};
 
 use crate::{
     app_state::AppState,
     domain::auth_api_error::AuthApiError,
-    utils::{auth, constants::JWT_COOKIE_NAME},
+    utils::{
+        auth,
+        constants::{JWT_COOKIE_NAME, JWT_ELEVATED_COOKIE_NAME},
+    },
 };
 
 pub async fn logout(
     State(app_state): State<AppState>,
-    jar: CookieJar,
-) -> Result<impl IntoResponse, AuthApiError> {
-    let cookie = auth::extract_token(&jar)?;
+    mut jar: CookieJar,
+) -> Result<(CookieJar, StatusCode), AuthApiError> {
+    let token = auth::extract_token(&jar, JWT_COOKIE_NAME)?.to_owned();
 
-    let token = cookie.value().to_owned();
+    auth::validate_auth_token(&token, &*app_state.banned_token_store.read().await).await?;
 
     let mut banned_token_store = app_state.banned_token_store.write().await;
-    let _claims = auth::validate_token(&token, &*banned_token_store).await?;
+
+    if let Some(cookie) = jar.get(JWT_ELEVATED_COOKIE_NAME) {
+        banned_token_store
+            .ban_token(cookie.value().to_owned())
+            .await?;
+        jar = jar.remove(Cookie::build((JWT_ELEVATED_COOKIE_NAME, "")).build());
+    }
 
     banned_token_store.ban_token(token).await?;
-
-    let jar = jar.remove(Cookie::build((JWT_COOKIE_NAME, "")).build());
+    jar = jar.remove(Cookie::build((JWT_COOKIE_NAME, "")).build());
 
     Ok((jar, StatusCode::OK))
 }

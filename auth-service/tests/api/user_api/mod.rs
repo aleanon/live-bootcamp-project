@@ -1,4 +1,5 @@
 mod delete_account;
+mod elevate;
 mod login;
 mod logout;
 mod root;

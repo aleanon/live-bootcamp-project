@@ -1,22 +1,16 @@
-use ::serde::Serialize;
 use axum::{Json, extract::State, http::StatusCode, response::IntoResponse};
 use axum_extra::extract::CookieJar;
-use serde::Deserialize;
 
 use crate::{
     app_state::AppState,
     domain::{
-        auth_api_error::AuthApiError, email::Email, login::ValidLoginRequest,
-        login_attempt_id::LoginAttemptId, two_fa_code::TwoFaCode, validated_user::ValidatedUser,
+        auth_api_error::AuthApiError, email::Email, two_fa_attempt_id::TwoFaAttemptId,
+        two_fa_code::TwoFaCode, user::ValidatedUser,
     },
+    requests::login::{LoginRequest, ValidLoginRequest},
+    responses::login::{LoginResponse, TwoFactorAuthResponse},
     utils::auth::generate_auth_cookie,
 };
-
-#[derive(Debug, Deserialize)]
-pub struct LoginRequest {
-    pub email: String,
-    pub password: String,
-}
 
 pub async fn login(
     State(app_state): State<AppState>,
@@ -29,7 +23,7 @@ pub async fn login(
         .user_store
         .read()
         .await
-        .validate_user(login_request.email(), login_request.password())
+        .authenticate_user(login_request.email(), login_request.password())
         .await?;
 
     match validated_user {
@@ -43,7 +37,7 @@ async fn handle_2fa(
     app_state: AppState,
     jar: CookieJar,
 ) -> Result<(CookieJar, (StatusCode, Json<LoginResponse>)), AuthApiError> {
-    let login_attempt_id = LoginAttemptId::new();
+    let login_attempt_id = TwoFaAttemptId::new();
     let code = TwoFaCode::new();
 
     app_state
@@ -62,7 +56,7 @@ async fn handle_2fa(
 
     let two_factor_auth_response = TwoFactorAuthResponse {
         message: "2FA required".to_string(),
-        login_attempt_id: login_attempt_id.to_string(),
+        attempt_id: login_attempt_id.to_string(),
     };
 
     Ok((
@@ -83,18 +77,4 @@ async fn handle_no_2fa(
     jar = jar.add(auth_cookie);
 
     Ok((jar, (StatusCode::OK, Json(LoginResponse::RegularAuth))))
-}
-
-#[derive(Debug, Serialize)]
-#[serde(untagged)]
-pub enum LoginResponse {
-    RegularAuth,
-    TwoFactorAuth(TwoFactorAuthResponse),
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct TwoFactorAuthResponse {
-    pub message: String,
-    #[serde(rename = "loginAttemptId")]
-    pub login_attempt_id: String,
 }

@@ -5,34 +5,34 @@ use uuid::Uuid;
 use super::two_fa_error::TwoFaError;
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct LoginAttemptId(Uuid);
+pub struct TwoFaAttemptId(Uuid);
 
-impl LoginAttemptId {
+impl TwoFaAttemptId {
     pub fn new() -> Self {
         let id = uuid::Uuid::new_v4();
-        LoginAttemptId(id)
+        TwoFaAttemptId(id)
     }
 
     pub fn parse(id: &str) -> Result<Self, TwoFaError> {
-        Ok(LoginAttemptId(
+        Ok(TwoFaAttemptId(
             Uuid::parse_str(id).map_err(|_| TwoFaError::InvalidLoginAttemptID)?,
         ))
     }
 }
 
-impl Default for LoginAttemptId {
+impl Default for TwoFaAttemptId {
     fn default() -> Self {
-        LoginAttemptId::new()
+        TwoFaAttemptId::new()
     }
 }
 
-impl Display for LoginAttemptId {
+impl Display for TwoFaAttemptId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0)
     }
 }
 
-impl Deref for LoginAttemptId {
+impl Deref for TwoFaAttemptId {
     type Target = Uuid;
 
     fn deref(&self) -> &Self::Target {

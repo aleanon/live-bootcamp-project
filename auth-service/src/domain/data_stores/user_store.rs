@@ -1,6 +1,10 @@
 use thiserror::Error;
 
-use crate::domain::{email::Email, password::Password, user::User, validated_user::ValidatedUser};
+use crate::domain::{
+    email::Email,
+    password::Password,
+    user::{User, ValidatedUser},
+};
 
 #[derive(Debug, PartialEq, Error)]
 pub enum UserStoreError {
@@ -17,11 +21,11 @@ pub enum UserStoreError {
 #[async_trait::async_trait]
 pub trait UserStore: Send + Sync {
     async fn add_user(&mut self, user: User) -> Result<(), UserStoreError>;
-    async fn validate_user(
+    async fn authenticate_user(
         &self,
         email: &Email,
         password: &Password,
     ) -> Result<ValidatedUser, UserStoreError>;
     async fn get_user(&self, email: &Email) -> Result<&User, UserStoreError>;
-    async fn delete_user(&mut self, user: &ValidatedUser) -> Result<(), UserStoreError>;
+    async fn delete_user(&mut self, user: &Email) -> Result<(), UserStoreError>;
 }

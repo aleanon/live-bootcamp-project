@@ -1,4 +1,12 @@
-use super::{email::Email, password::Password, user::UserError};
+use serde::Deserialize;
+
+use crate::domain::{email::Email, password::Password, user::UserError};
+
+#[derive(Debug, Deserialize)]
+pub struct LoginRequest {
+    pub email: String,
+    pub password: String,
+}
 
 #[derive(Debug)]
 pub struct ValidLoginRequest {

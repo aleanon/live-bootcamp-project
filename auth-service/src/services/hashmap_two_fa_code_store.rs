@@ -3,13 +3,13 @@ use std::collections::HashMap;
 use crate::domain::{
     data_stores::{TwoFaCodeStore, TwoFaCodeStoreError},
     email::Email,
-    login_attempt_id::LoginAttemptId,
+    two_fa_attempt_id::TwoFaAttemptId,
     two_fa_code::TwoFaCode,
 };
 
 #[derive(Default)]
 pub struct HashMapTwoFaCodeStore {
-    codes: HashMap<Email, (LoginAttemptId, TwoFaCode)>,
+    codes: HashMap<Email, (TwoFaAttemptId, TwoFaCode)>,
 }
 
 impl HashMapTwoFaCodeStore {
@@ -19,7 +19,7 @@ impl HashMapTwoFaCodeStore {
         }
     }
 
-    pub fn has_login_attempt_id(&self, attempt_id: &LoginAttemptId) -> bool {
+    pub fn has_login_attempt_id(&self, attempt_id: &TwoFaAttemptId) -> bool {
         self.codes
             .values()
             .find(|(id, _)| id == attempt_id)
@@ -32,7 +32,7 @@ impl TwoFaCodeStore for HashMapTwoFaCodeStore {
     async fn store_code(
         &mut self,
         user_id: Email,
-        login_attempt_id: LoginAttemptId,
+        login_attempt_id: TwoFaAttemptId,
         two_fa_code: TwoFaCode,
     ) -> Result<(), TwoFaCodeStoreError> {
         if self.codes.contains_key(&user_id) {
@@ -49,7 +49,7 @@ impl TwoFaCodeStore for HashMapTwoFaCodeStore {
     async fn validate(
         &self,
         user_id: &Email,
-        login_attempt_id: &LoginAttemptId,
+        login_attempt_id: &TwoFaAttemptId,
         two_fa_code: &TwoFaCode,
     ) -> Result<(), TwoFaCodeStoreError> {
         let Some((id, code)) = self.codes.get(user_id) else {
@@ -68,7 +68,7 @@ impl TwoFaCodeStore for HashMapTwoFaCodeStore {
     async fn get_login_attempt_id_and_two_fa_code(
         &self,
         user_id: &Email,
-    ) -> Result<(LoginAttemptId, TwoFaCode), TwoFaCodeStoreError> {
+    ) -> Result<(TwoFaAttemptId, TwoFaCode), TwoFaCodeStoreError> {
         let Some((id, code)) = self.codes.get(user_id) else {
             return Err(TwoFaCodeStoreError::UserNotFound);
         };
@@ -91,7 +91,7 @@ mod tests {
     async fn test_store_code() {
         let mut store = HashMapTwoFaCodeStore::new();
         let user_id = Email::try_from("test@example.com".to_owned()).unwrap();
-        let session_id = LoginAttemptId::new();
+        let session_id = TwoFaAttemptId::new();
         let two_fa_code = TwoFaCode::new();
 
         store
@@ -108,7 +108,7 @@ mod tests {
     async fn should_pass_valid_login_attempt_id_and_code() {
         let mut store = HashMapTwoFaCodeStore::new();
         let user_id = Email::try_from("test@example.com".to_owned()).unwrap();
-        let session_id = LoginAttemptId::new();
+        let session_id = TwoFaAttemptId::new();
         let two_fa_code = TwoFaCode::new();
 
         store
@@ -128,7 +128,7 @@ mod tests {
     async fn should_fail_with_invalid_login_attempt_id() {
         let mut store = HashMapTwoFaCodeStore::new();
         let user_id = Email::try_from("test@example.com".to_owned()).unwrap();
-        let session_id = LoginAttemptId::new();
+        let session_id = TwoFaAttemptId::new();
         let two_fa_code = TwoFaCode::new();
 
         store
@@ -138,7 +138,7 @@ mod tests {
 
         assert_eq!(
             store
-                .validate(&user_id, &LoginAttemptId::new(), &two_fa_code)
+                .validate(&user_id, &TwoFaAttemptId::new(), &two_fa_code)
                 .await,
             Err(TwoFaCodeStoreError::InvalidAttemptId)
         );
@@ -148,7 +148,7 @@ mod tests {
     async fn should_fail_with_invalid_code() {
         let mut store = HashMapTwoFaCodeStore::new();
         let user_id = Email::try_from("test@example.com".to_owned()).unwrap();
-        let session_id = LoginAttemptId::new();
+        let session_id = TwoFaAttemptId::new();
         let two_fa_code = TwoFaCode::new();
 
         store
@@ -168,7 +168,7 @@ mod tests {
     async fn delete_should_pass_with_valid_user_id() {
         let mut store = HashMapTwoFaCodeStore::new();
         let user_id = Email::try_from("test@example.com".to_owned()).unwrap();
-        let session_id = LoginAttemptId::new();
+        let session_id = TwoFaAttemptId::new();
         let two_fa_code = TwoFaCode::new();
 
         store

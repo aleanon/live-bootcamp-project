@@ -9,7 +9,9 @@ use thiserror::Error;
 
 use crate::domain::{data_stores::BannedTokenStore, email::Email};
 
-use super::constants::{JWT_COOKIE_NAME, JWT_SECRET};
+use super::constants::{
+    JWT_COOKIE_NAME, JWT_ELEVATED_COOKIE_NAME, JWT_ELEVATED_SECRET, JWT_SECRET,
+};
 
 #[derive(Debug, Error)]
 pub enum TokenAuthError {
@@ -25,22 +27,31 @@ pub enum TokenAuthError {
     UnexpectedError,
 }
 
-pub fn extract_token<'a>(jar: &'a CookieJar) -> Result<&'a Cookie<'a>, TokenAuthError> {
-    match jar.get(JWT_COOKIE_NAME) {
-        Some(cookie) => Ok(cookie),
+pub fn extract_token<'a>(jar: &'a CookieJar, cookie_name: &str) -> Result<&'a str, TokenAuthError> {
+    match jar.get(cookie_name) {
+        Some(cookie) => Ok(cookie.value()),
         None => Err(TokenAuthError::MissingToken),
     }
 }
 
 // Create cookie with a new JWT auth token
 pub fn generate_auth_cookie(email: &Email) -> Result<Cookie<'static>, TokenAuthError> {
-    let token = generate_auth_token(email)?;
-    Ok(create_auth_cookie(token))
+    let token = generate_auth_token(email, TOKEN_TTL_SECONDS, JWT_SECRET.as_bytes())?;
+    Ok(create_auth_cookie(token, JWT_COOKIE_NAME))
+}
+
+pub fn generate_elevated_auth_cookie(email: &Email) -> Result<Cookie<'static>, TokenAuthError> {
+    let token = generate_auth_token(
+        email,
+        ELEVATED_TOKEN_TTL_SECONDS,
+        JWT_ELEVATED_SECRET.as_bytes(),
+    )?;
+    Ok(create_auth_cookie(token, JWT_ELEVATED_COOKIE_NAME))
 }
 
 // Create cookie and set the value to the passed-in token string
-fn create_auth_cookie(token: String) -> Cookie<'static> {
-    Cookie::build((JWT_COOKIE_NAME, token))
+fn create_auth_cookie(token: String, cookie_name: &'static str) -> Cookie<'static> {
+    Cookie::build((cookie_name, token))
         .path("/") // apply cookie to all URLs on the server
         .http_only(true) // prevent JavaScript from accessing the cookie
         .secure(true)
@@ -50,11 +61,16 @@ fn create_auth_cookie(token: String) -> Cookie<'static> {
 
 // This value determines how long the JWT auth token is valid for
 pub const TOKEN_TTL_SECONDS: i64 = 600; // 10 minutes
+pub const ELEVATED_TOKEN_TTL_SECONDS: i64 = 60; // 1 minute
 
 // Create JWT auth token
-fn generate_auth_token(email: &Email) -> Result<String, TokenAuthError> {
+fn generate_auth_token(
+    email: &Email,
+    token_ttl_seconds: i64,
+    secret: &[u8],
+) -> Result<String, TokenAuthError> {
     let delta =
-        chrono::Duration::try_seconds(TOKEN_TTL_SECONDS).ok_or(TokenAuthError::UnexpectedError)?;
+        chrono::Duration::try_seconds(token_ttl_seconds).ok_or(TokenAuthError::UnexpectedError)?;
 
     // Create JWT expiration time
     let exp = Utc::now()
@@ -71,23 +87,38 @@ fn generate_auth_token(email: &Email) -> Result<String, TokenAuthError> {
 
     let claims = Claims { sub, exp };
 
-    create_token(&claims)
+    create_token(&claims, secret)
 }
 
 // Check if JWT auth token is valid by decoding it using the JWT secret
-pub async fn validate_token(
+pub async fn validate_auth_token(
     token: &str,
     banned_token_store: &dyn BannedTokenStore,
 ) -> Result<Claims, TokenAuthError> {
+    validate_token(token, banned_token_store, JWT_SECRET.as_bytes()).await
+}
+
+pub async fn validate_elevated_auth_token(
+    token: &str,
+    banned_token_store: &dyn BannedTokenStore,
+) -> Result<Claims, TokenAuthError> {
+    validate_token(token, banned_token_store, JWT_ELEVATED_SECRET.as_bytes()).await
+}
+
+async fn validate_token(
+    token: &str,
+    banned_token_store: &dyn BannedTokenStore,
+    secret: &[u8],
+) -> Result<Claims, TokenAuthError> {
     let claims = decode::<Claims>(
         token,
-        &DecodingKey::from_secret(JWT_SECRET.as_bytes()),
+        &DecodingKey::from_secret(secret),
         &Validation::default(),
     )
     .map(|data| data.claims)
     .map_err(TokenAuthError::TokenError)?;
 
-    let token = create_token(&claims)?;
+    let token = create_token(&claims, secret)?;
 
     let is_banned = banned_token_store
         .token_is_banned(&token)
@@ -102,11 +133,11 @@ pub async fn validate_token(
 }
 
 // Create JWT auth token by encoding claims using the JWT secret
-fn create_token(claims: &Claims) -> Result<String, TokenAuthError> {
+fn create_token(claims: &Claims, secret: &[u8]) -> Result<String, TokenAuthError> {
     encode(
         &jsonwebtoken::Header::default(),
         &claims,
-        &EncodingKey::from_secret(JWT_SECRET.as_bytes()),
+        &EncodingKey::from_secret(secret),
     )
     .map_err(TokenAuthError::TokenError)
 }
@@ -137,7 +168,7 @@ mod tests {
     #[tokio::test]
     async fn test_create_auth_cookie() {
         let token = "test_token".to_owned();
-        let cookie = create_auth_cookie(token.clone());
+        let cookie = create_auth_cookie(token.clone(), JWT_COOKIE_NAME);
         assert_eq!(cookie.name(), JWT_COOKIE_NAME);
         assert_eq!(cookie.value(), token);
         assert_eq!(cookie.path(), Some("/"));
@@ -148,7 +179,7 @@ mod tests {
     #[tokio::test]
     async fn test_generate_auth_token() {
         let email = Email::try_from("test@example.com".to_owned()).unwrap();
-        let result = generate_auth_token(&email).unwrap();
+        let result = generate_auth_token(&email, TOKEN_TTL_SECONDS, JWT_SECRET.as_bytes()).unwrap();
         assert_eq!(result.split('.').count(), 3);
     }
 
@@ -156,8 +187,10 @@ mod tests {
     async fn test_validate_token_with_valid_token() {
         let email = Email::try_from("test@example.com".to_owned()).unwrap();
         let banned_token_store = HashSetBannedTokenStore::default();
-        let token = generate_auth_token(&email).unwrap();
-        let result = validate_token(&token, &banned_token_store).await.unwrap();
+        let token = generate_auth_token(&email, TOKEN_TTL_SECONDS, JWT_SECRET.as_bytes()).unwrap();
+        let result = validate_auth_token(&token, &banned_token_store)
+            .await
+            .unwrap();
         assert_eq!(result.sub, "test@example.com");
 
         let exp = Utc::now()
@@ -172,7 +205,7 @@ mod tests {
     async fn test_validate_token_with_invalid_token() {
         let token = "invalid_token".to_owned();
         let banned_token_store = HashSetBannedTokenStore::default();
-        let result = validate_token(&token, &banned_token_store).await;
+        let result = validate_auth_token(&token, &banned_token_store).await;
         assert!(result.is_err());
     }
 
@@ -180,10 +213,10 @@ mod tests {
     async fn test_ban_token() {
         let email = Email::try_from("test@example.com".to_owned()).unwrap();
         let mut banned_token_store = HashSetBannedTokenStore::default();
-        let token = generate_auth_token(&email).unwrap();
+        let token = generate_auth_token(&email, TOKEN_TTL_SECONDS, JWT_SECRET.as_bytes()).unwrap();
 
         banned_token_store.ban_token(token.clone()).await.unwrap();
-        let result = validate_token(&token, &banned_token_store).await;
+        let result = validate_auth_token(&token, &banned_token_store).await;
         assert!(result.is_err());
     }
 }

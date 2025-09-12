@@ -2,10 +2,10 @@ use auth_service::{
     domain::{
         auth_api_error::{AuthApiError, ErrorResponse},
         data_stores::UserStoreError,
-        login_attempt_id::LoginAttemptId,
+        two_fa_attempt_id::TwoFaAttemptId,
         user::UserError,
     },
-    routes::TwoFactorAuthResponse,
+    responses::login::TwoFactorAuthResponse,
 };
 
 use crate::helpers::{TestApp, get_standard_test_user};
@@ -59,7 +59,7 @@ async fn should_return_206_when_2fa_enabled() {
 
     assert_eq!(&response.message, "2FA required");
 
-    let login_id = LoginAttemptId::parse(&response.login_attempt_id).expect("Invalid code");
+    let login_id = TwoFaAttemptId::parse(&response.attempt_id).expect("Invalid code");
 
     let two_fa_code_store = app.two_fa_code_store.read().await;
     assert!(two_fa_code_store.has_login_attempt_id(&login_id))
