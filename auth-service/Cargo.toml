@@ -30,6 +30,8 @@ dotenvy.workspace = true
 lazy_static.workspace = true
 dashmap.workspace = true
 rand.workspace = true
+sqlx.workspace = true
+
 
 
 [dev-dependencies]

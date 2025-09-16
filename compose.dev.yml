@@ -8,6 +8,7 @@ services:
     environment: # set up environment variables
       AUTH_SERVICE_IP: ${AUTH_SERVICE_IP:-localhost} # Use localhost as the default value
       AUTH_SERVICE_URL: ${AUTH_SERVICE_URL:-http://localhost:3000}
+      DATABASE_URL: "postgres://postgres:${POSTGRES_PASSWORD}@db:5432"
 
     expose:
       - "8000" # expose port 8000 so that applications outside the container can connect to it
@@ -33,6 +34,8 @@ services:
     depends_on:
       caddy:
         condition: service_started
+      db:
+        condition: service_started
 
   caddy:
     image: caddy:2
@@ -45,9 +48,21 @@ services:
     networks:
       - backend
 
+  db:
+    image: postgres:15.2-alpine
+    restart: always
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      - db:/var/lib/postgresql/data
+
 volumes:
   caddy_data:
   caddy_config:
+  db:
+    driver: local
 
 networks:
   backend:

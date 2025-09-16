@@ -15,6 +15,7 @@ use axum::{
     serve::Serve,
 };
 use routes::{delete_account, elevate, login, logout, signup, verify_token, verify_two_fa};
+use sqlx::{PgPool, postgres::PgPoolOptions};
 use std::error::Error;
 use tower_http::{
     cors::{AllowOrigin, CorsLayer},
@@ -63,4 +64,9 @@ impl Application {
     pub async fn run(self) -> Result<(), std::io::Error> {
         self.server.await
     }
+}
+
+pub async fn get_postgres_pool(url: &str) -> Result<PgPool, sqlx::Error> {
+    // Create a new PostgreSQL connection pool
+    PgPoolOptions::new().max_connections(5).connect(url).await
 }
