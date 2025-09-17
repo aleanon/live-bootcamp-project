@@ -26,6 +26,6 @@ pub trait UserStore: Send + Sync {
         email: &Email,
         password: &Password,
     ) -> Result<ValidatedUser, UserStoreError>;
-    async fn get_user(&self, email: &Email) -> Result<&User, UserStoreError>;
+    async fn get_user(&self, email: &Email) -> Result<User, UserStoreError>;
     async fn delete_user(&mut self, user: &Email) -> Result<(), UserStoreError>;
 }

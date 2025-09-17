@@ -36,8 +36,11 @@ impl UserStore for HashMapUserStore {
         }
     }
 
-    async fn get_user(&self, email: &Email) -> Result<&User, UserStoreError> {
-        self.users.get(email).ok_or(UserStoreError::UserNotFound)
+    async fn get_user(&self, email: &Email) -> Result<User, UserStoreError> {
+        self.users
+            .get(email)
+            .cloned()
+            .ok_or(UserStoreError::UserNotFound)
     }
 
     async fn delete_user(&mut self, user: &Email) -> Result<(), UserStoreError> {
@@ -97,7 +100,7 @@ mod tests {
         .unwrap();
         assert!(user_store.add_user(user.clone()).await.is_ok());
         let user_two = user_store.get_user(user.email()).await.unwrap();
-        assert_eq!(user_two, &user);
+        assert_eq!(user_two, user);
     }
 
     #[tokio::test]

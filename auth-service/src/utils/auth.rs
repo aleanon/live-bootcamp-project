@@ -150,7 +150,7 @@ pub struct Claims {
 
 #[cfg(test)]
 mod tests {
-    use crate::services::hashset_banned_token_store::HashSetBannedTokenStore;
+    use crate::services::data_stores::hashset_banned_token_store::HashSetBannedTokenStore;
 
     use super::*;
 

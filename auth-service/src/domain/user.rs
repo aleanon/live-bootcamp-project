@@ -18,6 +18,14 @@ pub struct User {
 }
 
 impl User {
+    pub fn new(email: Email, password: Password, requires_2fa: bool) -> Self {
+        User {
+            email,
+            password,
+            requires_2fa,
+        }
+    }
+
     pub fn parse(email: String, password: String, requires_2fa: bool) -> Result<Self, UserError> {
         Ok(User {
             email: Email::try_from(email)?,

@@ -17,6 +17,12 @@ impl TryFrom<String> for Password {
     }
 }
 
+impl AsRef<str> for Password {
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
+}
+
 impl Debug for Password {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("Password(*Masked*)")

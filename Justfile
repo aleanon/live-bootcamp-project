@@ -22,5 +22,5 @@ run name:
 log name:
     docker logs live-bootcamp-project-{{name}}-1
 
-test args:
+test args="":
     cargo nextest run {{args}}

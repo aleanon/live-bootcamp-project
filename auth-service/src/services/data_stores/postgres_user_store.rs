@@ -1,0 +1,496 @@
+use argon2::{
+    Algorithm, Argon2, Params, PasswordHash, PasswordHasher, PasswordVerifier, Version,
+    password_hash::{SaltString, rand_core},
+};
+use sqlx::{Pool, Postgres};
+use std::error::Error;
+
+use crate::domain::{
+    data_stores::{UserStore, UserStoreError},
+    email::Email,
+    password::Password,
+    user::{User, ValidatedUser},
+};
+
+pub struct PostgresUserStore {
+    pool: sqlx::PgPool,
+}
+
+impl PostgresUserStore {
+    pub fn new(pool: Pool<Postgres>) -> Self {
+        PostgresUserStore { pool }
+    }
+}
+
+#[async_trait::async_trait]
+impl UserStore for PostgresUserStore {
+    async fn add_user(&mut self, user: User) -> Result<(), UserStoreError> {
+        let password = user.password().clone();
+        let password_hash = tokio::task::spawn_blocking(move || {
+            compute_password_hash(password.as_ref()).map_err(|_| UserStoreError::UnexpectedError)
+        })
+        .await
+        .map_err(|_| UserStoreError::UnexpectedError)??;
+
+        let query = sqlx::query!(
+            r#"
+                INSERT INTO users (email, password_hash, requires_2fa)
+                VALUES ($1, $2, $3)
+            "#,
+            user.email().as_ref(),
+            password_hash,
+            user.requires_2fa()
+        );
+
+        query.execute(&self.pool).await.map_err(|e| {
+            if let Some(db_err) = e.as_database_error() {
+                if db_err.constraint().is_some() {
+                    return UserStoreError::UserAlreadyExists;
+                }
+            }
+            UserStoreError::UnexpectedError
+        })?;
+
+        Ok(())
+    }
+
+    async fn authenticate_user(
+        &self,
+        email: &Email,
+        password: &Password,
+    ) -> Result<ValidatedUser, UserStoreError> {
+        let query = sqlx::query!(
+            r#"
+                SELECT email, password_hash, requires_2fa
+                FROM users
+                WHERE email = $1
+            "#,
+            email.as_ref()
+        );
+
+        let row = query
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(|_| UserStoreError::UserNotFound)?;
+
+        let Some(row) = row else {
+            return Err(UserStoreError::UserNotFound);
+        };
+
+        let password = password.as_ref().to_owned();
+        tokio::task::spawn_blocking(move || {
+            verify_password_hash(&row.password_hash, &password)
+                .map(|_| true)
+                .map_err(|_| UserStoreError::IncorrectPassword)
+        })
+        .await
+        .map_err(|_| UserStoreError::UnexpectedError)??;
+
+        let email = Email::try_from(row.email).map_err(|_| UserStoreError::UnexpectedError)?;
+        Ok(ValidatedUser::new(email, row.requires_2fa))
+    }
+
+    async fn get_user(&self, email: &Email) -> Result<User, UserStoreError> {
+        let query = sqlx::query!(
+            r#"
+                SELECT email, password_hash, requires_2fa
+                FROM users
+                WHERE email = $1
+            "#,
+            email.as_ref()
+        );
+
+        let row = query
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(|_| UserStoreError::UserNotFound)?;
+
+        let Some(row) = row else {
+            return Err(UserStoreError::UserNotFound);
+        };
+
+        let user = User::parse(row.email, row.password_hash, row.requires_2fa)
+            .map_err(|_| UserStoreError::UnexpectedError)?;
+
+        Ok(user)
+    }
+
+    async fn delete_user(&mut self, user: &Email) -> Result<(), UserStoreError> {
+        let query = sqlx::query!(
+            r#"
+                DELETE FROM users
+                WHERE email = $1
+            "#,
+            user.as_ref()
+        );
+
+        let result = query
+            .execute(&self.pool)
+            .await
+            .map_err(|_| UserStoreError::UnexpectedError)?;
+
+        if result.rows_affected() == 0 {
+            return Err(UserStoreError::UserNotFound);
+        }
+
+        Ok(())
+    }
+}
+
+fn verify_password_hash(
+    expected_password_hash: &str,
+    password_candidate: &str,
+) -> Result<(), Box<dyn Error>> {
+    let expected_password_hash: PasswordHash<'_> = PasswordHash::new(expected_password_hash)?;
+
+    Argon2::new(
+        Algorithm::Argon2id,
+        Version::V0x13,
+        Params::new(15000, 2, 1, None)?,
+    )
+    .verify_password(password_candidate.as_bytes(), &expected_password_hash)
+    .map_err(|e| e.into())
+}
+
+fn compute_password_hash(password: &str) -> Result<String, Box<dyn Error>> {
+    let salt: SaltString = SaltString::generate(rand_core::OsRng);
+    let hasher = Argon2::new(
+        Algorithm::Argon2id,
+        Version::V0x13,
+        Params::new(15000, 2, 1, None)?,
+    );
+    let hashed_password = hasher.hash_password(password.as_bytes(), &salt)?;
+
+    Ok(hashed_password.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+
+    use crate::get_postgres_pool;
+
+    use super::*;
+    use sqlx::{Executor, PgPool, postgres::PgPoolOptions};
+    use testcontainers_modules::{
+        postgres,
+        testcontainers::{ContainerAsync, runners::AsyncRunner},
+    };
+    use tokio::sync::{OnceCell, RwLock, RwLockReadGuard};
+    use uuid::Uuid;
+
+    static POSTGRES_CONTAINER: OnceCell<RwLock<ContainerAsync<postgres::Postgres>>> =
+        OnceCell::const_new();
+
+    async fn container() -> RwLockReadGuard<'static, ContainerAsync<postgres::Postgres>> {
+        POSTGRES_CONTAINER
+            .get_or_init(async || {
+                let container = postgres::Postgres::default()
+                    .start()
+                    .await
+                    .expect("Failed to start db container");
+                RwLock::new(container)
+            })
+            .await
+            .read()
+            .await
+    }
+
+    async fn setup_test_db() -> PgPool {
+        let container = container().await;
+
+        let db_port = container
+            .get_host_port_ipv4(5432)
+            .await
+            .expect("Failed to get the mapped port of the container");
+
+        let host = container
+            .get_host()
+            .await
+            .expect("Failed to get the container host address");
+
+        let db_url = format!("postgres://postgres:postgres@{}:{}", host, db_port);
+
+        configure_postgresql(db_url).await
+    }
+
+    async fn configure_postgresql(url: String) -> PgPool {
+        // We are creating a new database for each test case, and we need to ensure each database has a unique name!
+        let db_name = Uuid::new_v4().to_string();
+
+        configure_database(&url, &db_name).await;
+
+        let postgresql_conn_url_with_db = format!("{}/{}", url, db_name);
+
+        // Create a new connection pool and return it
+        get_postgres_pool(&postgresql_conn_url_with_db)
+            .await
+            .expect("Failed to create Postgres connection pool!")
+    }
+
+    async fn configure_database(db_conn_string: &str, db_name: &str) {
+        // Create database connection
+        let connection = PgPoolOptions::new()
+            .connect(db_conn_string)
+            .await
+            .expect("Failed to create Postgres connection pool.");
+
+        // Create a new database
+        connection
+            .execute(format!(r#"CREATE DATABASE "{}";"#, db_name).as_str())
+            .await
+            .expect("Failed to create database.");
+
+        // Connect to new database
+        let db_conn_string = format!("{}/{}", db_conn_string, db_name);
+
+        let connection = PgPoolOptions::new()
+            .connect(&db_conn_string)
+            .await
+            .expect("Failed to create Postgres connection pool.");
+
+        // Run migrations against new database
+        sqlx::migrate!()
+            .run(&connection)
+            .await
+            .expect("Failed to migrate the database");
+    }
+
+    fn create_test_user() -> User {
+        let unique_id = uuid::Uuid::new_v4();
+        User::new(
+            Email::try_from(format!("test{}@example.com", unique_id)).unwrap(),
+            Password::try_from("password123".to_string()).unwrap(),
+            false,
+        )
+    }
+
+    fn create_test_user_with_2fa() -> User {
+        let unique_id = uuid::Uuid::new_v4();
+        User::new(
+            Email::try_from(format!("test2fa{}@example.com", unique_id)).unwrap(),
+            Password::try_from("password123".to_string()).unwrap(),
+            true,
+        )
+    }
+
+    #[tokio::test]
+    async fn test_add_user_success() {
+        let pool = setup_test_db().await;
+        let mut store = PostgresUserStore::new(pool.clone());
+        let user = create_test_user();
+
+        let result = store.add_user(user.clone()).await;
+        assert!(result.is_ok());
+
+        // Verify user was added to database
+        let row = sqlx::query!(
+            "SELECT email, requires_2fa FROM users WHERE email = $1",
+            user.email().as_ref()
+        )
+        .fetch_one(&pool)
+        .await
+        .expect("Failed to query user");
+
+        assert_eq!(row.email, user.email().as_ref());
+        assert_eq!(row.requires_2fa, user.requires_2fa());
+    }
+
+    #[tokio::test]
+    async fn test_add_user_duplicate_email() {
+        let pool = setup_test_db().await;
+        let mut store = PostgresUserStore::new(pool);
+        let user = create_test_user();
+
+        // Add user first time
+        store.add_user(user.clone()).await.unwrap();
+
+        // Try to add same user again
+        let result = store.add_user(user).await;
+        assert_eq!(result, Err(UserStoreError::UserAlreadyExists));
+    }
+
+    #[tokio::test]
+    async fn test_authenticate_user_success() {
+        let pool = setup_test_db().await;
+        let mut store = PostgresUserStore::new(pool);
+        let user = create_test_user();
+        let email = user.email().clone();
+        let password = user.password().clone();
+
+        // Add user first
+        store.add_user(user).await.unwrap();
+
+        // Authenticate user
+        let result = store.authenticate_user(&email, &password).await;
+        assert!(result.is_ok());
+
+        let validated_user = result.unwrap();
+        assert_eq!(validated_user.email(), &email);
+        assert_eq!(validated_user, ValidatedUser::No2Fa(email));
+    }
+
+    #[tokio::test]
+    async fn test_authenticate_user_with_2fa() {
+        let pool = setup_test_db().await;
+        let mut store = PostgresUserStore::new(pool);
+        let user = create_test_user_with_2fa();
+        let email = user.email().clone();
+        let password = user.password().clone();
+
+        // Add user first
+        store.add_user(user).await.unwrap();
+
+        // Authenticate user
+        let result = store.authenticate_user(&email, &password).await;
+        assert!(result.is_ok());
+
+        let validated_user = result.unwrap();
+        assert_eq!(validated_user.email(), &email);
+        assert_eq!(validated_user, ValidatedUser::Requires2Fa(email));
+    }
+
+    #[tokio::test]
+    async fn test_authenticate_user_not_found() {
+        let pool = setup_test_db().await;
+        let store = PostgresUserStore::new(pool);
+        let email = Email::try_from("nonexistent@example.com".to_string()).unwrap();
+        let password = Password::try_from("password123".to_string()).unwrap();
+
+        let result = store.authenticate_user(&email, &password).await;
+        assert_eq!(result, Err(UserStoreError::UserNotFound));
+    }
+
+    #[tokio::test]
+    async fn test_authenticate_user_wrong_password() {
+        let pool = setup_test_db().await;
+        let mut store = PostgresUserStore::new(pool);
+        let user = create_test_user();
+        let email = user.email().clone();
+        let wrong_password = Password::try_from("wrongpassword".to_string()).unwrap();
+
+        // Add user first
+        store.add_user(user).await.unwrap();
+
+        // Try to authenticate with wrong password
+        let result = store.authenticate_user(&email, &wrong_password).await;
+        assert_eq!(result, Err(UserStoreError::IncorrectPassword));
+    }
+
+    #[tokio::test]
+    async fn test_get_user_success() {
+        let pool = setup_test_db().await;
+        let mut store = PostgresUserStore::new(pool);
+        let user = create_test_user();
+        let email = user.email().clone();
+
+        // Add user first
+        store.add_user(user.clone()).await.unwrap();
+
+        // Get user
+        let result = store.get_user(&email).await;
+        assert!(result.is_ok());
+
+        let retrieved_user = result.unwrap();
+        assert_eq!(retrieved_user.email(), user.email());
+        assert_eq!(retrieved_user.requires_2fa(), user.requires_2fa());
+    }
+
+    #[tokio::test]
+    async fn test_get_user_not_found() {
+        let pool = setup_test_db().await;
+        let store = PostgresUserStore::new(pool);
+        let email = Email::try_from("nonexistent@example.com".to_string()).unwrap();
+
+        let result = store.get_user(&email).await;
+        assert_eq!(result, Err(UserStoreError::UserNotFound));
+    }
+
+    #[tokio::test]
+    async fn test_delete_user_success() {
+        let pool = setup_test_db().await;
+        let mut store = PostgresUserStore::new(pool.clone());
+        let user = create_test_user();
+        let email = user.email().clone();
+
+        // Add user first
+        store.add_user(user).await.unwrap();
+
+        // Delete user
+        let result = store.delete_user(&email).await;
+        assert!(result.is_ok());
+
+        // Verify user was deleted
+        let count: i64 = sqlx::query_scalar!(
+            "SELECT COUNT(*) FROM users WHERE email = $1",
+            email.as_ref()
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap()
+        .unwrap();
+        assert_eq!(count, 0);
+    }
+
+    #[tokio::test]
+    async fn test_delete_user_not_found() {
+        let pool = setup_test_db().await;
+        let mut store = PostgresUserStore::new(pool);
+        let email = Email::try_from("nonexistent@example.com".to_string()).unwrap();
+
+        let result = store.delete_user(&email).await;
+        assert_eq!(result, Err(UserStoreError::UserNotFound));
+    }
+
+    #[test]
+    fn test_compute_password_hash() {
+        let password = "testpassword123";
+        let hash_result = compute_password_hash(password);
+
+        assert!(hash_result.is_ok());
+        let hash = hash_result.unwrap();
+        assert!(!hash.is_empty());
+        assert_ne!(hash, password); // Hash should be different from original password
+    }
+
+    #[test]
+    fn test_verify_password_hash_success() {
+        let password = "testpassword123";
+        let hash = compute_password_hash(password).unwrap();
+
+        let result = verify_password_hash(&hash, password);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_verify_password_hash_failure() {
+        let password = "testpassword123";
+        let wrong_password = "wrongpassword";
+        let hash = compute_password_hash(password).unwrap();
+
+        let result = verify_password_hash(&hash, wrong_password);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_verify_password_hash_invalid_hash() {
+        let invalid_hash = "invalid_hash_format";
+        let password = "testpassword123";
+
+        let result = verify_password_hash(invalid_hash, password);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_compute_password_hash_deterministic_salt() {
+        let password = "testpassword123";
+        let hash1 = compute_password_hash(password).unwrap();
+        let hash2 = compute_password_hash(password).unwrap();
+
+        // Hashes should be different due to random salt
+        assert_ne!(hash1, hash2);
+
+        // But both should verify successfully
+        assert!(verify_password_hash(&hash1, password).is_ok());
+        assert!(verify_password_hash(&hash2, password).is_ok());
+    }
+}
