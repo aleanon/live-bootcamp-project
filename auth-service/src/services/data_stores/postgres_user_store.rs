@@ -311,16 +311,9 @@ mod tests {
         assert!(result.is_ok());
 
         // Verify user was added to database
-        let row = sqlx::query!(
-            "SELECT email, requires_2fa FROM users WHERE email = $1",
-            user.email().as_ref()
-        )
-        .fetch_one(&pool)
-        .await
-        .expect("Failed to query user");
+        let stored_user = store.get_user(user.email()).await;
 
-        assert_eq!(row.email, user.email().as_ref());
-        assert_eq!(row.requires_2fa, user.requires_2fa());
+        assert_eq!(stored_user, Ok(user));
     }
 
     #[tokio::test]
@@ -441,22 +434,15 @@ mod tests {
         let email = user.email().clone();
 
         // Add user first
-        store.add_user(user).await.unwrap();
+        store.add_user(user.clone()).await.unwrap();
 
         // Delete user
         let result = store.delete_user(&email).await;
         assert!(result.is_ok());
 
         // Verify user was deleted
-        let count: i64 = sqlx::query_scalar!(
-            "SELECT COUNT(*) FROM users WHERE email = $1",
-            email.as_ref()
-        )
-        .fetch_one(&pool)
-        .await
-        .unwrap()
-        .unwrap();
-        assert_eq!(count, 0);
+        let result = store.get_user(user.email()).await;
+        assert_eq!(result, Err(UserStoreError::UserNotFound));
     }
 
     #[tokio::test]
