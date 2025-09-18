@@ -51,6 +51,9 @@ jobs:
       - name: Install Rust
         run: rustup update stable && rustup default stable
 
+      - name: Install SQLx CLI
+        run: cargo install sqlx-cli --version 0.8.6 --locked
+
       - name: Build and test app-service code
         working-directory: ./app-service
         run: |
@@ -61,6 +64,7 @@ jobs:
         working-directory: ./auth-service
         run: |
           export DATABASE_URL=postgres://postgres:${{ secrets.POSTGRES_PASSWORD }}@localhost:5432
+          cargo sqlx prepare
           cargo build --verbose
           cargo test --verbose
         env:
