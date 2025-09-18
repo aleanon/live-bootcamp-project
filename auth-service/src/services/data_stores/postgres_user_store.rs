@@ -170,33 +170,17 @@ mod tests {
     use crate::get_postgres_pool;
 
     use super::*;
-    use sqlx::{Executor, PgPool, postgres::PgPoolOptions};
+    use sqlx::PgPool;
     use testcontainers_modules::{
         postgres,
         testcontainers::{ContainerAsync, runners::AsyncRunner},
     };
-    use tokio::sync::{OnceCell, RwLock, RwLockReadGuard};
-    use uuid::Uuid;
 
-    static POSTGRES_CONTAINER: OnceCell<RwLock<ContainerAsync<postgres::Postgres>>> =
-        OnceCell::const_new();
-
-    async fn container() -> RwLockReadGuard<'static, ContainerAsync<postgres::Postgres>> {
-        POSTGRES_CONTAINER
-            .get_or_init(async || {
-                let container = postgres::Postgres::default()
-                    .start()
-                    .await
-                    .expect("Failed to start db container");
-                RwLock::new(container)
-            })
+    async fn setup_and_connect_db_container() -> (ContainerAsync<postgres::Postgres>, PgPool) {
+        let container = postgres::Postgres::default()
+            .start()
             .await
-            .read()
-            .await
-    }
-
-    async fn setup_test_db() -> PgPool {
-        let container = container().await;
+            .expect("Failed to start container");
 
         let db_port = container
             .get_host_port_ipv4(5432)
@@ -210,50 +194,94 @@ mod tests {
 
         let db_url = format!("postgres://postgres:postgres@{}:{}", host, db_port);
 
-        configure_postgresql(db_url).await
-    }
-
-    async fn configure_postgresql(url: String) -> PgPool {
-        // We are creating a new database for each test case, and we need to ensure each database has a unique name!
-        let db_name = Uuid::new_v4().to_string();
-
-        configure_database(&url, &db_name).await;
-
-        let postgresql_conn_url_with_db = format!("{}/{}", url, db_name);
-
-        // Create a new connection pool and return it
-        get_postgres_pool(&postgresql_conn_url_with_db)
+        let connection = get_postgres_pool(&db_url)
             .await
-            .expect("Failed to create Postgres connection pool!")
-    }
+            .expect("Failed to connect to database");
 
-    async fn configure_database(db_conn_string: &str, db_name: &str) {
-        // Create database connection
-        let connection = PgPoolOptions::new()
-            .connect(db_conn_string)
-            .await
-            .expect("Failed to create Postgres connection pool.");
-
-        // Create a new database
-        connection
-            .execute(format!(r#"CREATE DATABASE "{}";"#, db_name).as_str())
-            .await
-            .expect("Failed to create database.");
-
-        // Connect to new database
-        let db_conn_string = format!("{}/{}", db_conn_string, db_name);
-
-        let connection = PgPoolOptions::new()
-            .connect(&db_conn_string)
-            .await
-            .expect("Failed to create Postgres connection pool.");
-
-        // Run migrations against new database
         sqlx::migrate!()
             .run(&connection)
             .await
             .expect("Failed to migrate the database");
+
+        (container, connection)
     }
+
+    // static POSTGRES_CONTAINER: OnceCell<RwLock<ContainerAsync<postgres::Postgres>>> =
+    //     OnceCell::const_new();
+
+    // async fn container() -> RwLockReadGuard<'static, ContainerAsync<postgres::Postgres>> {
+    //     POSTGRES_CONTAINER
+    //         .get_or_init(async || {
+    //             let container = postgres::Postgres::default()
+    //                 .start()
+    //                 .await
+    //                 .expect("Failed to start db container");
+    //             RwLock::new(container)
+    //         })
+    //         .await
+    //         .read()
+    //         .await
+    // }
+
+    // async fn setup_postgres_test_db() -> PgPool {
+    //     let container = container().await;
+
+    //     let db_port = container
+    //         .get_host_port_ipv4(5432)
+    //         .await
+    //         .expect("Failed to get the mapped port of the container");
+
+    //     let host = container
+    //         .get_host()
+    //         .await
+    //         .expect("Failed to get the container host address");
+
+    //     let db_url = format!("postgres://postgres:postgres@{}:{}", host, db_port);
+
+    //     configure_postgresql(db_url).await
+    // }
+
+    // async fn configure_postgresql(url: String) -> PgPool {
+    //     // We are creating a new database for each test case, and we need to ensure each database has a unique name!
+    //     let db_name = Uuid::new_v4().to_string();
+
+    //     configure_database(&url, &db_name).await;
+
+    //     let postgresql_conn_url_with_db = format!("{}/{}", url, db_name);
+
+    //     // Create a new connection pool and return it
+    //     get_postgres_pool(&postgresql_conn_url_with_db)
+    //         .await
+    //         .expect("Failed to create Postgres connection pool!")
+    // }
+
+    // async fn configure_database(db_conn_string: &str, db_name: &str) {
+    //     // Create database connection
+    //     let connection = PgPoolOptions::new()
+    //         .connect(db_conn_string)
+    //         .await
+    //         .expect("Failed to create Postgres connection pool.");
+
+    //     // Create a new database
+    //     connection
+    //         .execute(format!(r#"CREATE DATABASE "{}";"#, db_name).as_str())
+    //         .await
+    //         .expect("Failed to create database.");
+
+    //     // Connect to new database
+    //     let db_conn_string = format!("{}/{}", db_conn_string, db_name);
+
+    //     let connection = PgPoolOptions::new()
+    //         .connect(&db_conn_string)
+    //         .await
+    //         .expect("Failed to create Postgres connection pool.");
+
+    //     // Run migrations against new database
+    //     sqlx::migrate!()
+    //         .run(&connection)
+    //         .await
+    //         .expect("Failed to migrate the database");
+    // }
 
     fn create_test_user() -> User {
         let unique_id = uuid::Uuid::new_v4();
@@ -275,7 +303,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_add_user_success() {
-        let pool = setup_test_db().await;
+        let (_container, pool) = setup_and_connect_db_container().await;
         let mut store = PostgresUserStore::new(pool.clone());
         let user = create_test_user();
 
@@ -297,7 +325,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_add_user_duplicate_email() {
-        let pool = setup_test_db().await;
+        let (_container, pool) = setup_and_connect_db_container().await;
         let mut store = PostgresUserStore::new(pool);
         let user = create_test_user();
 
@@ -311,7 +339,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_authenticate_user_success() {
-        let pool = setup_test_db().await;
+        let (_container, pool) = setup_and_connect_db_container().await;
         let mut store = PostgresUserStore::new(pool);
         let user = create_test_user();
         let email = user.email().clone();
@@ -331,7 +359,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_authenticate_user_with_2fa() {
-        let pool = setup_test_db().await;
+        let (_container, pool) = setup_and_connect_db_container().await;
         let mut store = PostgresUserStore::new(pool);
         let user = create_test_user_with_2fa();
         let email = user.email().clone();
@@ -351,7 +379,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_authenticate_user_not_found() {
-        let pool = setup_test_db().await;
+        let (_container, pool) = setup_and_connect_db_container().await;
         let store = PostgresUserStore::new(pool);
         let email = Email::try_from("nonexistent@example.com".to_string()).unwrap();
         let password = Password::try_from("password123".to_string()).unwrap();
@@ -362,7 +390,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_authenticate_user_wrong_password() {
-        let pool = setup_test_db().await;
+        let (_container, pool) = setup_and_connect_db_container().await;
         let mut store = PostgresUserStore::new(pool);
         let user = create_test_user();
         let email = user.email().clone();
@@ -378,7 +406,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_user_success() {
-        let pool = setup_test_db().await;
+        let (_container, pool) = setup_and_connect_db_container().await;
         let mut store = PostgresUserStore::new(pool);
         let user = create_test_user();
         let email = user.email().clone();
@@ -397,7 +425,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_user_not_found() {
-        let pool = setup_test_db().await;
+        let (_container, pool) = setup_and_connect_db_container().await;
         let store = PostgresUserStore::new(pool);
         let email = Email::try_from("nonexistent@example.com".to_string()).unwrap();
 
@@ -407,7 +435,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_delete_user_success() {
-        let pool = setup_test_db().await;
+        let (_container, pool) = setup_and_connect_db_container().await;
         let mut store = PostgresUserStore::new(pool.clone());
         let user = create_test_user();
         let email = user.email().clone();
@@ -433,7 +461,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_delete_user_not_found() {
-        let pool = setup_test_db().await;
+        let (_container, pool) = setup_and_connect_db_container().await;
         let mut store = PostgresUserStore::new(pool);
         let email = Email::try_from("nonexistent@example.com".to_string()).unwrap();
 

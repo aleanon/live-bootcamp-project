@@ -24,3 +24,13 @@ log name:
 
 test args="":
     cargo nextest run {{args}}
+
+cleanup-containers:
+    docker stop $(docker ps -q)
+    docker rm $(docker ps -aq)
+
+start-db-containers:
+    docker run --name ps-db -e POSTGRES_PASSWORD=password -p 5432:5432 -d postgres:15.4-alpine
+    docker run --name redis-db -p "6379:6379" -d redis:7.0-alpine
+    cd auth-service/
+    cargo sqlx migrate run

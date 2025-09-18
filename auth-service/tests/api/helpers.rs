@@ -3,14 +3,17 @@ use std::sync::Arc;
 use auth_service::{
     Application,
     app_state::AppState,
-    domain::{data_stores::TwoFaCodeStore, email::Email},
+    domain::{
+        data_stores::{BannedTokenStore, TwoFaCodeStore},
+        email::Email,
+    },
     get_postgres_pool,
     requests::verify_2fa::Verify2FARequest,
     services::data_stores::{
-        PostgresUserStore, hashmap_two_fa_code_store::HashMapTwoFaCodeStore,
-        hashset_banned_token_store::HashSetBannedTokenStore, mock_email_client::MockEmailClient,
+        PostgresUserStore, RedisBannedTokenStore, hashmap_two_fa_code_store::HashMapTwoFaCodeStore,
+        mock_email_client::MockEmailClient,
     },
-    utils::constants::{DATABASE_URL, JWT_COOKIE_NAME, JWT_ELEVATED_COOKIE_NAME, test},
+    utils::constants::{JWT_COOKIE_NAME, JWT_ELEVATED_COOKIE_NAME, test},
 };
 
 use reqwest::{
@@ -19,31 +22,38 @@ use reqwest::{
 };
 use serde::Serialize;
 use serde_json::Value;
-use sqlx::{Executor, PgPool, postgres::PgPoolOptions};
+use sqlx::PgPool;
 use testcontainers_modules::{
     postgres,
+    redis::Redis,
     testcontainers::{ContainerAsync, runners::AsyncRunner},
 };
-use tokio::sync::{OnceCell, RwLock, RwLockReadGuard};
+use tokio::sync::{Mutex, RwLock};
 use uuid::Uuid;
-
-// static POSTGRES_CONTAINER: OnceCell<RwLock<ContainerAsync<>>>
 
 pub struct TestApp {
     pub address: String,
     pub cookie_jar: Arc<Jar>,
     pub http_client: reqwest::Client,
-    pub two_fa_code_store: Arc<RwLock<HashMapTwoFaCodeStore>>,
-    pub banned_token_store: Arc<RwLock<HashSetBannedTokenStore>>,
+    pub two_fa_code_store: Arc<RwLock<dyn TwoFaCodeStore>>,
+    pub banned_token_store: Arc<RwLock<dyn BannedTokenStore>>,
+    #[allow(unused)]
+    user_store_container: ContainerAsync<postgres::Postgres>,
+    #[allow(unused)]
+    redis_container: ContainerAsync<Redis>,
 }
 
 impl TestApp {
     pub async fn new() -> Self {
-        let banned_token_store = Arc::new(RwLock::new(HashSetBannedTokenStore::default()));
+        let (redis_container, redis_connection) = setup_and_connect_redis_container().await;
+        let redis_connection = Arc::new(Mutex::new(redis_connection));
+        let banned_token_store =
+            Arc::new(RwLock::new(RedisBannedTokenStore::new(redis_connection)));
         let two_fa_code_store = Arc::new(RwLock::new(HashMapTwoFaCodeStore::default()));
         let email_client = Arc::new(RwLock::new(MockEmailClient::default()));
 
-        let pool = connect_test_db().await;
+        let (user_store_container, pool) = setup_and_connect_user_store_container().await;
+
         let user_store = Arc::new(RwLock::new(PostgresUserStore::new(pool)));
 
         let app_state = AppState::new(
@@ -73,6 +83,8 @@ impl TestApp {
             http_client,
             two_fa_code_store,
             banned_token_store,
+            user_store_container,
+            redis_container,
         }
     }
 
@@ -116,7 +128,7 @@ impl TestApp {
         token.to_owned()
     }
 
-    pub fn get_elevated_jwt_token(&self) -> Option<String> {
+    pub fn _get_elevated_jwt_token(&self) -> Option<String> {
         self.cookie_jar
             .cookies(&Url::parse(&self.address).unwrap())?
             .to_str()
@@ -215,25 +227,94 @@ pub fn get_standard_test_user(two_fa: bool) -> Value {
     })
 }
 
-static POSTGRES_CONTAINER: OnceCell<RwLock<ContainerAsync<postgres::Postgres>>> =
-    OnceCell::const_new();
+// static POSTGRES_CONTAINER: OnceCell<RwLock<ContainerAsync<postgres::Postgres>>> =
+//     OnceCell::const_new();
 
-async fn container() -> RwLockReadGuard<'static, ContainerAsync<postgres::Postgres>> {
-    POSTGRES_CONTAINER
-        .get_or_init(async || {
-            let container = postgres::Postgres::default()
-                .start()
-                .await
-                .expect("Failed to start db container");
-            RwLock::new(container)
-        })
-        .await
-        .read()
-        .await
-}
+// async fn container() -> RwLockReadGuard<'static, ContainerAsync<postgres::Postgres>> {
+//     POSTGRES_CONTAINER
+//         .get_or_init(async || {
+//             let container = postgres::Postgres::default()
+//                 .start()
+//                 .await
+//                 .expect("Failed to start db container");
+//             RwLock::new(container)
+//         })
+//         .await
+//         .read()
+//         .await
+// }
 
-async fn connect_test_db() -> PgPool {
-    let container = container().await;
+// async fn connect_test_db() -> PgPool {
+//     let container = container().await;
+
+//     let db_port = container
+//         .get_host_port_ipv4(5432)
+//         .await
+//         .expect("Failed to get the mapped port of the container");
+
+//     let host = container
+//         .get_host()
+//         .await
+//         .expect("Failed to get the container host address");
+
+//     let db_url = format!("postgres://postgres:postgres@{}:{}", host, db_port);
+
+//     configure_postgresql(db_url).await
+// }
+
+// async fn configure_postgresql(postgresql_conn_url: String) -> PgPool {
+//     // We are creating a new database for each test case, and we need to ensure each database has a unique name!
+//     let db_name = Uuid::new_v4().to_string();
+
+//     configure_database(&postgresql_conn_url, &db_name).await;
+
+//     let postgresql_conn_url_with_db = format!("{}/{}", postgresql_conn_url, db_name);
+
+//     // Create a new connection pool and return it
+//     get_postgres_pool(&postgresql_conn_url_with_db)
+//         .await
+//         .expect("Failed to create Postgres connection pool!")
+// }
+
+// async fn configure_database(db_conn_string: &str, db_name: &str) {
+//     // Create database connection
+//     let connection = PgPoolOptions::new()
+//         .connect(db_conn_string)
+//         .await
+//         .expect("Failed to create Postgres connection pool.");
+
+//     // Create a new database
+//     connection
+//         .execute(format!(r#"CREATE DATABASE "{}";"#, db_name).as_str())
+//         .await
+//         .expect("Failed to create database.");
+
+//     // Connect to new database
+//     let db_conn_string = format!("{}/{}", db_conn_string, db_name);
+
+//     let connection = PgPoolOptions::new()
+//         .connect(&db_conn_string)
+//         .await
+//         .expect("Failed to create Postgres connection pool.");
+
+//     // Run migrations against new database
+//     sqlx::migrate!()
+//         .run(&connection)
+//         .await
+//         .expect("Failed to migrate the database");
+// }
+
+// async fn setup_and_connect_redis_test_db_container() -> Connection {
+//     let container = testcontainers_modules::redis::Redis::default().start().await.expect("Failed to start redis test container");
+
+//     let host = container.get_host_port_ipv4(6379)
+// }
+
+async fn setup_and_connect_user_store_container() -> (ContainerAsync<postgres::Postgres>, PgPool) {
+    let container = postgres::Postgres::default()
+        .start()
+        .await
+        .expect("Failed to start container");
 
     let db_port = container
         .get_host_port_ipv4(5432)
@@ -247,47 +328,40 @@ async fn connect_test_db() -> PgPool {
 
     let db_url = format!("postgres://postgres:postgres@{}:{}", host, db_port);
 
-    configure_postgresql(db_url).await
-}
-
-async fn configure_postgresql(postgresql_conn_url: String) -> PgPool {
-    // We are creating a new database for each test case, and we need to ensure each database has a unique name!
-    let db_name = Uuid::new_v4().to_string();
-
-    configure_database(&postgresql_conn_url, &db_name).await;
-
-    let postgresql_conn_url_with_db = format!("{}/{}", postgresql_conn_url, db_name);
-
-    // Create a new connection pool and return it
-    get_postgres_pool(&postgresql_conn_url_with_db)
+    let connection = get_postgres_pool(&db_url)
         .await
-        .expect("Failed to create Postgres connection pool!")
-}
+        .expect("Failed to connect to database");
 
-async fn configure_database(db_conn_string: &str, db_name: &str) {
-    // Create database connection
-    let connection = PgPoolOptions::new()
-        .connect(db_conn_string)
-        .await
-        .expect("Failed to create Postgres connection pool.");
-
-    // Create a new database
-    connection
-        .execute(format!(r#"CREATE DATABASE "{}";"#, db_name).as_str())
-        .await
-        .expect("Failed to create database.");
-
-    // Connect to new database
-    let db_conn_string = format!("{}/{}", db_conn_string, db_name);
-
-    let connection = PgPoolOptions::new()
-        .connect(&db_conn_string)
-        .await
-        .expect("Failed to create Postgres connection pool.");
-
-    // Run migrations against new database
     sqlx::migrate!()
         .run(&connection)
         .await
         .expect("Failed to migrate the database");
+
+    (container, connection)
+}
+
+async fn setup_and_connect_redis_container() -> (ContainerAsync<Redis>, redis::Connection) {
+    let container = Redis::default()
+        .start()
+        .await
+        .expect("Failed to start container");
+
+    let db_port = container
+        .get_host_port_ipv4(6379)
+        .await
+        .expect("Failed to get the mapped port of the container");
+
+    let host = container
+        .get_host()
+        .await
+        .expect("Failed to get the container host address");
+
+    let db_url = format!("redis://{}:{}/", host, db_port);
+
+    let connection = redis::Client::open(db_url)
+        .expect("Failed to open redis client")
+        .get_connection()
+        .expect("Failed to connect redis client");
+
+    (container, connection)
 }

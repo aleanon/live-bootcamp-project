@@ -2,6 +2,7 @@ use auth_service::{
     domain::{
         auth_api_error::{AuthApiError, ErrorResponse},
         data_stores::UserStoreError,
+        email::Email,
         two_fa_attempt_id::TwoFaAttemptId,
         user::UserError,
     },
@@ -62,7 +63,12 @@ async fn should_return_206_when_2fa_enabled() {
     let login_id = TwoFaAttemptId::parse(&response.attempt_id).expect("Invalid code");
 
     let two_fa_code_store = app.two_fa_code_store.read().await;
-    assert!(two_fa_code_store.has_login_attempt_id(&login_id))
+    let email = Email::try_from("test@example.com".to_string()).unwrap();
+    let (login_attempt_id, _) = two_fa_code_store
+        .get_login_attempt_id_and_two_fa_code(&email)
+        .await
+        .unwrap();
+    assert_eq!(login_attempt_id, login_id)
 }
 
 #[tokio::test]

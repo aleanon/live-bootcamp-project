@@ -32,7 +32,7 @@ dashmap.workspace = true
 rand.workspace = true
 sqlx.workspace = true
 argon2 = {workspace = true, features = ["std"]}
-
+redis = {workspace = true}
 
 [dev-dependencies]
 reqwest.workspace = true

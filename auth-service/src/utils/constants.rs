@@ -6,6 +6,7 @@ pub static JWT_SECRET: LazyLock<String> = LazyLock::new(set_token);
 pub static JWT_ELEVATED_SECRET: LazyLock<String> = LazyLock::new(set_elevated_token);
 pub static AUTH_SERVICE_ALLOWED_ORIGINS: LazyLock<String> = LazyLock::new(set_allowed_origins);
 pub static DATABASE_URL: LazyLock<String> = LazyLock::new(set_database_url);
+pub static REDIS_HOST_NAME: LazyLock<String> = LazyLock::new(set_redis_host_name);
 
 fn set_token() -> String {
     dotenv().ok(); // Load environment variables
@@ -37,15 +38,22 @@ fn set_database_url() -> String {
     std_env::var(env::DATABASE_URL_ENV_VAR).expect("DATABASE_URL must be set.")
 }
 
+fn set_redis_host_name() -> String {
+    dotenv().ok();
+    std_env::var(env::REDIS_HOST_NAME_ENV_VAR).unwrap_or(DEFAULT_REDIS_HOSTNAME.to_owned())
+}
+
 pub mod env {
     pub const JWT_SECRET_ENV_VAR: &str = "JWT_SECRET";
     pub const JWT_ELEVATED_SECRET_ENV_VAR: &str = "JWT_ELEVATED_SECRET";
     pub const AUTH_SERVICE_ALLOWED_ORIGINS_ENV_VAR: &str = "AUTH_SERVICE_ALLOWED_ORIGINS";
     pub const DATABASE_URL_ENV_VAR: &str = "DATABASE_URL";
+    pub const REDIS_HOST_NAME_ENV_VAR: &str = "REDIS_HOST_NAME";
 }
 
 pub const JWT_COOKIE_NAME: &str = "jwt";
 pub const JWT_ELEVATED_COOKIE_NAME: &str = "jwt_elevated";
+pub const DEFAULT_REDIS_HOSTNAME: &str = "127.0.0.1";
 
 pub mod prod {
     pub const APP_ADDRESS: &str = "0.0.0.0:3000";

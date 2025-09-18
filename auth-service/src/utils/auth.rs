@@ -121,7 +121,7 @@ async fn validate_token(
     let token = create_token(&claims, secret)?;
 
     let is_banned = banned_token_store
-        .token_is_banned(&token)
+        .contains_token(&token)
         .await
         .map_err(|_| TokenAuthError::UnexpectedError)?;
 

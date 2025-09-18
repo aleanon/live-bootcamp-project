@@ -1,10 +1,11 @@
 use std::{fmt::Display, ops::Deref};
 
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use super::two_fa_error::TwoFaError;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TwoFaAttemptId(Uuid);
 
 impl TwoFaAttemptId {

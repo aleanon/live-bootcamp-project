@@ -14,6 +14,7 @@ use axum::{
     routing::{delete, post},
     serve::Serve,
 };
+use redis::{Client, RedisResult};
 use routes::{delete_account, elevate, login, logout, signup, verify_token, verify_two_fa};
 use sqlx::{PgPool, postgres::PgPoolOptions};
 use std::error::Error;
@@ -22,7 +23,7 @@ use tower_http::{
     services::ServeDir,
 };
 
-use crate::utils::constants::DATABASE_URL;
+use crate::utils::constants::{DATABASE_URL, REDIS_HOST_NAME};
 
 pub struct Application {
     server: Serve<Router, Router>,
@@ -82,7 +83,20 @@ pub async fn configure_postgresql() -> PgPool {
 
     pg_pool
 }
+
+pub fn configure_redis() -> redis::Connection {
+    get_redis_client(REDIS_HOST_NAME.to_owned())
+        .expect("Failed to get Redis client")
+        .get_connection()
+        .expect("Failed to get Redis connection")
+}
+
 pub async fn get_postgres_pool(url: &str) -> Result<PgPool, sqlx::Error> {
     // Create a new PostgreSQL connection pool
     PgPoolOptions::new().max_connections(5).connect(url).await
+}
+
+pub fn get_redis_client(redis_hostname: String) -> RedisResult<Client> {
+    let redis_url = format!("redis://{}/", redis_hostname);
+    redis::Client::open(redis_url)
 }
