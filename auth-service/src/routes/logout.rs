@@ -24,11 +24,16 @@ pub async fn logout(
         banned_token_store
             .ban_token(cookie.value().to_owned())
             .await?;
-        jar = jar.remove(Cookie::build((JWT_ELEVATED_COOKIE_NAME, "")).build());
+        jar = jar.remove(
+            Cookie::build((JWT_ELEVATED_COOKIE_NAME, ""))
+                .removal()
+                .build(),
+        );
     }
 
     banned_token_store.ban_token(token).await?;
-    jar = jar.remove(Cookie::build((JWT_COOKIE_NAME, "")).build());
+    let remove_cookie = Cookie::build((JWT_COOKIE_NAME, "")).removal().build();
+    jar = jar.remove(remove_cookie);
 
     Ok((jar, StatusCode::OK))
 }

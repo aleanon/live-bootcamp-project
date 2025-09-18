@@ -28,9 +28,12 @@ test args="":
 cleanup-containers:
     docker stop $(docker ps -q)
     docker rm $(docker ps -aq)
+    docker volume prune -f
 
-start-db-containers:
+remake-db-containers:
+    docker stop ps-db redis-db
+    docker rm ps-db redis-db
+    docker volume prune -f
     docker run --name ps-db -e POSTGRES_PASSWORD=password -p 5432:5432 -d postgres:15.4-alpine
     docker run --name redis-db -p "6379:6379" -d redis:7.0-alpine
-    cd auth-service/
-    cargo sqlx migrate run
+    cd auth-service/ && cargo sqlx migrate run

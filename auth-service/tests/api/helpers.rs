@@ -117,15 +117,14 @@ impl TestApp {
         );
     }
 
-    pub fn get_jwt_token(&self) -> String {
+    pub fn get_jwt_token(&self) -> Option<String> {
         let cookie = self
             .cookie_jar
-            .cookies(&Url::parse(&self.address).unwrap())
-            .unwrap();
+            .cookies(&Url::parse(&self.address).unwrap())?;
 
         let (_, token) = cookie.to_str().unwrap().split_once('=').unwrap();
 
-        token.to_owned()
+        Some(token.to_owned())
     }
 
     pub fn _get_elevated_jwt_token(&self) -> Option<String> {

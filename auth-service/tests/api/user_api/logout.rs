@@ -1,4 +1,4 @@
-use crate::helpers::{get_standard_test_user, TestApp};
+use crate::helpers::{TestApp, get_standard_test_user};
 
 #[tokio::test]
 async fn should_return_200_if_jwt_cookie_is_valid() {
@@ -41,6 +41,7 @@ async fn should_return_400_if_logout_is_called_twice() {
     let response = app.logout().await;
 
     assert_eq!(response.status().as_u16(), 200);
+    assert_eq!(app.get_jwt_token(), None);
 
     let response = app.logout().await;
 

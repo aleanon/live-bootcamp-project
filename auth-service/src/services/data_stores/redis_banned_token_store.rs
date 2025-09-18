@@ -24,7 +24,7 @@ impl BannedTokenStore for RedisBannedTokenStore {
     async fn ban_token(&mut self, token: String) -> Result<(), BannedTokenStoreError> {
         let key = get_key(&token);
 
-        let ttl = TOKEN_TTL_SECONDS.cast_unsigned();
+        let ttl = TOKEN_TTL_SECONDS as u64;
         let mut conn = self.conn.lock().await;
         conn.set_ex(key, true, ttl)
             .map_err(|e| BannedTokenStoreError::DatabaseError(e.to_string()))

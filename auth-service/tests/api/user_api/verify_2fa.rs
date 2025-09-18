@@ -30,7 +30,7 @@ async fn should_return_200() {
     });
 
     let response = app.verify_2fa(&body).await;
-    let token = app.get_jwt_token();
+    let token = app.get_jwt_token().expect("No jwt token stored");
     let banned_token_store = app.banned_token_store.read().await;
     auth::validate_auth_token(&token, &*banned_token_store)
         .await
