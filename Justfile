@@ -40,3 +40,6 @@ remake-db-containers:
 
 generate-secret length="64":
     openssl rand -base64 {{length}}
+
+connect:
+    ssh root@134.122.65.215

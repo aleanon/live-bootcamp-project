@@ -12,6 +12,10 @@ services:
     depends_on: # only run app-service after auth-service has started
       caddy:
         condition: service_started
+      db:
+        condition: service_started
+      redis:
+        condition: service_started
 
   auth-service:
     image: aleanton/auth-service
