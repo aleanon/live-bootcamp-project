@@ -7,9 +7,29 @@ on:
       - main
   workflow_dispatch:
 
+env:
+  SQLX_OFFLINE: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        # Docker Hub image
+        image: postgres:15.2-alpine
+        # Environment variables scoped only for the `postgres` element
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          POSTGRES_DB: postgres
+        # Opens tcp port 5432 on the host and service container
+        ports:
+          - 5432:5432
+      redis:
+        image: redis:7.0-alpine
+        ports:
+          - 6379:6379
 
     steps:
       # Checkout code from the repository
@@ -40,6 +60,7 @@ jobs:
       - name: Build and test auth-service code
         working-directory: ./auth-service
         run: |
+          export DATABASE_URL=postgres://postgres:${{ secrets.POSTGRES_PASSWORD }}@localhost:5432
           cargo build --verbose
           cargo test --verbose
         env:
@@ -102,7 +123,9 @@ jobs:
             echo "AUTH_SERVICE_IP=${{ vars.DROPLET_IP }}" > .env
             echo "AUTH_SERVICE_URL=${{ vars.AUTH_SERVICE_URL }}" >> .env
             echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> .env
-            echo AUTH_SERVICE_ALLOWED_ORIGINS=${{ secrets.AUTH_SERVICE_ALLOWED_ORIGINS }}
+            echo "JWT_ELEVATED_SECRET=${{ secrets.JWT_ELEVATED_SECRET }}" >> .env
+            echo "AUTH_SERVICE_ALLOWED_ORIGINS=${{ secrets.AUTH_SERVICE_ALLOWED_ORIGINS }}" >> .env
+            echo "POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}" >> .env
             snap install docker
             docker compose down
             docker compose pull

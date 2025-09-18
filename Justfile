@@ -37,3 +37,6 @@ remake-db-containers:
     docker run --name ps-db -e POSTGRES_PASSWORD=password -p 5432:5432 -d postgres:15.4-alpine
     docker run --name redis-db -p "6379:6379" -d redis:7.0-alpine
     cd auth-service/ && cargo sqlx migrate run
+
+generate-secret length="64":
+    openssl rand -base64 {{length}}
