@@ -64,6 +64,7 @@ jobs:
         working-directory: ./auth-service
         run: |
           export DATABASE_URL=postgres://postgres:${{ secrets.POSTGRES_PASSWORD }}@localhost:5432
+          cargo sqlx migrate run
           cargo sqlx prepare
           cargo build --verbose
           cargo test --verbose
