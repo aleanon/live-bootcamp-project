@@ -1,11 +1,11 @@
 use axum::{extract::State, http::StatusCode};
-use axum_extra::extract::{CookieJar, cookie::Cookie};
+use axum_extra::extract::CookieJar;
 
 use crate::{
     app_state::AppState,
-    domain::auth_api_error::AuthApiError,
+    domain::{auth_api_error::AuthApiError, data_stores::BannedTokenStore},
     utils::{
-        auth,
+        auth::{self, create_removal_cookie},
         constants::{JWT_COOKIE_NAME, JWT_ELEVATED_COOKIE_NAME},
     },
 };
@@ -24,16 +24,11 @@ pub async fn logout(
         banned_token_store
             .ban_token(cookie.value().to_owned())
             .await?;
-        jar = jar.remove(
-            Cookie::build((JWT_ELEVATED_COOKIE_NAME, ""))
-                .removal()
-                .build(),
-        );
+        jar = jar.remove(create_removal_cookie(JWT_ELEVATED_COOKIE_NAME))
     }
 
     banned_token_store.ban_token(token).await?;
-    let remove_cookie = Cookie::build((JWT_COOKIE_NAME, "")).removal().build();
-    jar = jar.remove(remove_cookie);
+    jar = jar.remove(create_removal_cookie(JWT_COOKIE_NAME));
 
     Ok((jar, StatusCode::OK))
 }

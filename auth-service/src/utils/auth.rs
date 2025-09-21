@@ -49,8 +49,14 @@ pub fn generate_elevated_auth_cookie(email: &Email) -> Result<Cookie<'static>, T
     Ok(create_auth_cookie(token, JWT_ELEVATED_COOKIE_NAME))
 }
 
+pub fn create_removal_cookie(cookie_name: &'static str) -> Cookie<'static> {
+    let mut cookie = create_auth_cookie(String::new(), cookie_name);
+    cookie.make_removal();
+    cookie
+}
+
 // Create cookie and set the value to the passed-in token string
-fn create_auth_cookie(token: String, cookie_name: &'static str) -> Cookie<'static> {
+pub fn create_auth_cookie(token: String, cookie_name: &'static str) -> Cookie<'static> {
     Cookie::build((cookie_name, token))
         .path("/") // apply cookie to all URLs on the server
         .http_only(true) // prevent JavaScript from accessing the cookie

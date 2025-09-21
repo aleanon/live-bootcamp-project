@@ -1,24 +1,84 @@
 services:
   app-service:
-    image: aleanton/app-service
-    restart: "always"
-    environment:
-      AUTH_SERVICE_IP: ${AUTH_SERVICE_IP:-localhost}
-      AUTH_SERVICE_URL: ${AUTH_SERVICE_URL:-http://localhost:3000}
+    image: aleanton/app-service # specify name of image on Docker Hub
+    restart: "always" # automatically restart container when server crashes
     build:
       context: .
       dockerfile: ./app-service/Dockerfile
-    ports:
-      - "8000:8000"
+    environment: # set up environment variables
+      AUTH_SERVICE_IP: ${AUTH_SERVICE_IP:-localhost} # Use localhost as the default value
+      AUTH_SERVICE_URL: ${AUTH_SERVICE_URL:-http://localhost:3000}
+    expose:
+      - "8000" # expose port 8000 so that applications outside the container can connect to it
+    networks:
+      - backend
+    depends_on: # only run app-service after auth-service has started
+      caddy:
+        condition: service_started
 
   auth-service:
     image: aleanton/auth-service
     restart: "always"
-    environment:
-      JWT_SECRET: ${JWT_SECRET}
-      AUTH_SERVICE_ALLOWED_ORIGINS: ${AUTH_SERVICE_ALLOWED_ORIGINS}
     build:
       context: .
       dockerfile: ./auth-service/Dockerfile
+    environment:
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_ELEVATED_SECRET: ${JWT_ELEVATED_SECRET}
+      AUTH_SERVICE_ALLOWED_ORIGINS: ${AUTH_SERVICE_ALLOWED_ORIGINS}
+      DATABASE_URL: "postgres://postgres:${POSTGRES_PASSWORD}@db:5432"
+      REDIS_HOST_NAME: ${REDIS_HOST_NAME}
+    expose:
+      - "3000"
+    networks:
+      - backend
+    volumes:
+      - "auth-config:/config"
+    depends_on:
+      caddy:
+        condition: service_started
+      db:
+        condition: service_started
+      redis:
+        condition: service_started
+
+  caddy:
+    image: caddy:2
+    volumes:
+      - ./Caddyfile.dev:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
     ports:
-      - "3000:3000"
+      - "8080:8080"
+    networks:
+      - backend
+
+  db:
+    image: postgres:15.4-alpine
+    restart: always
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    expose:
+      - "5432"
+    networks:
+      - backend
+    volumes:
+      - db:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7.0-alpine
+    restart: always
+    expose:
+      - "6379"
+    networks:
+      - backend
+
+volumes:
+  auth-config:
+  caddy_data:
+  caddy_config:
+  db:
+    driver: local
+
+networks:
+  backend:

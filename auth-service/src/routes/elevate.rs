@@ -3,7 +3,7 @@ use axum_extra::extract::CookieJar;
 
 use crate::{
     app_state::AppState,
-    domain::auth_api_error::AuthApiError,
+    domain::{auth_api_error::AuthApiError, data_stores::UserStore},
     requests::elevate::{ElevateRequest, ValidElevateRequest},
     utils::{auth, constants::JWT_COOKIE_NAME},
 };

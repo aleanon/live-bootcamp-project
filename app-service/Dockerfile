@@ -16,13 +16,13 @@ COPY --from=planner /app/recipe.json recipe.json
 RUN cargo chef cook --release --recipe-path recipe.json
 # Build application
 COPY . .
-RUN cargo build --release -p app-service
+RUN cargo build --release
 
 # We do not need the Rust toolchain to run the binary!
 # Start with a minimal image and copy over the binary and assets folder.
 FROM debian:buster-slim AS runtime
 WORKDIR /app
 COPY --from=builder /app/target/release/app-service /usr/local/bin
-COPY --from=builder /app/app-service/assets /app/assets
+COPY --from=builder /app/assets /app/assets
 ENV AUTH_SERVICE_HOST_NAME=auth-service
 ENTRYPOINT ["/usr/local/bin/app-service"]

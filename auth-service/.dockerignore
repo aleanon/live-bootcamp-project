@@ -1,0 +1,11 @@
+.env
+target/
+tests/
+Dockerfile
+*/target/
+*/.env
+*/tests/
+*/Dockerfile
+.git/
+*.md
+compose*.yml

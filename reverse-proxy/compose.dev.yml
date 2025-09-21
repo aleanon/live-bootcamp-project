@@ -1,0 +1,20 @@
+services:
+  reverse-proxy:
+    image: caddy:2
+    volumes:
+      - ./.config/Caddyfile.dev:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    ports:
+      - "8080:8080"
+    networks:
+      - backend
+
+volumes:
+  caddy_data:
+  caddy_config:
+
+networks:
+  backend:
+    external: true
+    name: project_backend

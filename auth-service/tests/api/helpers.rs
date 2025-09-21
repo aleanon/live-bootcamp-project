@@ -2,16 +2,16 @@ use std::sync::Arc;
 
 use auth_service::{
     Application,
-    app_state::AppState,
+    app_state::actual,
+    application::get_postgres_pool,
     domain::{
         data_stores::{BannedTokenStore, TwoFaCodeStore},
         email::Email,
     },
-    get_postgres_pool,
     requests::verify_2fa::Verify2FARequest,
     services::data_stores::{
-        PostgresUserStore, RedisBannedTokenStore, hashmap_two_fa_code_store::HashMapTwoFaCodeStore,
-        mock_email_client::MockEmailClient,
+        PostgresUserStore, RedisBannedTokenStore, RedisTwoFaCodeStore,
+        hashmap_two_fa_code_store::HashMapTwoFaCodeStore, mock_email_client::MockEmailClient,
     },
     utils::constants::{JWT_COOKIE_NAME, JWT_ELEVATED_COOKIE_NAME, test},
 };
@@ -31,6 +31,13 @@ use testcontainers_modules::{
 use tokio::sync::{Mutex, RwLock};
 use uuid::Uuid;
 
+type AppState<
+    UserStore = PostgresUserStore,
+    BannedTokenStore = RedisBannedTokenStore,
+    TwoFaCodeStore = HashMapTwoFaCodeStore,
+    EmailClient = MockEmailClient,
+> = actual::AppState<UserStore, BannedTokenStore, TwoFaCodeStore, EmailClient>;
+
 pub struct TestApp {
     pub address: String,
     pub cookie_jar: Arc<Jar>,
@@ -43,13 +50,20 @@ pub struct TestApp {
     redis_container: ContainerAsync<Redis>,
 }
 
+// static TEST_APP_COUNTER: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+// static JANITOR: std::sync::LazyLock<std::sync::RwLock<Janitor>> =
+//     std::sync::LazyLock::new(|| std::sync::RwLock::new(Janitor::new()));
+
 impl TestApp {
     pub async fn new() -> Self {
+        // TEST_APP_COUNTER.fetch_add(1, std::sync::atomic::Ordering::AcqRel);
+
         let (redis_container, redis_connection) = setup_and_connect_redis_container().await;
         let redis_connection = Arc::new(Mutex::new(redis_connection));
-        let banned_token_store =
-            Arc::new(RwLock::new(RedisBannedTokenStore::new(redis_connection)));
-        let two_fa_code_store = Arc::new(RwLock::new(HashMapTwoFaCodeStore::default()));
+        let banned_token_store = Arc::new(RwLock::new(RedisBannedTokenStore::new(
+            redis_connection.clone(),
+        )));
+        let two_fa_code_store = Arc::new(RwLock::new(RedisTwoFaCodeStore::new(redis_connection)));
         let email_client = Arc::new(RwLock::new(MockEmailClient::default()));
 
         let (user_store_container, pool) = setup_and_connect_user_store_container().await;

@@ -4,8 +4,13 @@ use axum_extra::extract::CookieJar;
 use crate::{
     app_state::AppState,
     domain::{
-        auth_api_error::AuthApiError, email::Email, two_fa_attempt_id::TwoFaAttemptId,
-        two_fa_code::TwoFaCode, user::ValidatedUser,
+        auth_api_error::AuthApiError,
+        data_stores::{TwoFaCodeStore, UserStore},
+        email::Email,
+        email_client::EmailClient,
+        two_fa_attempt_id::TwoFaAttemptId,
+        two_fa_code::TwoFaCode,
+        user::ValidatedUser,
     },
     requests::login::{LoginRequest, ValidLoginRequest},
     responses::login::{LoginResponse, TwoFactorAuthResponse},

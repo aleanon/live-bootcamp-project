@@ -1,4 +1,4 @@
-mod delete_account;
+pub mod delete_account;
 mod elevate;
 mod login;
 mod logout;

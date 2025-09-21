@@ -24,6 +24,7 @@ impl PostgresUserStore {
 
 #[async_trait::async_trait]
 impl UserStore for PostgresUserStore {
+    #[tracing::instrument(name = "Adding user to PostgreSQL", skip_all)]
     async fn add_user(&mut self, user: User) -> Result<(), UserStoreError> {
         let password = user.password().clone();
         let password_hash = tokio::task::spawn_blocking(move || {
@@ -53,7 +54,7 @@ impl UserStore for PostgresUserStore {
 
         Ok(())
     }
-
+    #[tracing::instrument(name = "Validating user credentials in PostgreSQL", skip_all)]
     async fn authenticate_user(
         &self,
         email: &Email,
@@ -78,18 +79,16 @@ impl UserStore for PostgresUserStore {
         };
 
         let password = password.as_ref().to_owned();
-        tokio::task::spawn_blocking(move || {
-            verify_password_hash(&row.password_hash, &password)
-                .map(|_| true)
-                .map_err(|_| UserStoreError::IncorrectPassword)
-        })
-        .await
-        .map_err(|_| UserStoreError::UnexpectedError)??;
+
+        verify_password_hash(row.password_hash, password)
+            .await
+            .map_err(|_| UserStoreError::IncorrectPassword)?;
 
         let email = Email::try_from(row.email).map_err(|_| UserStoreError::UnexpectedError)?;
         Ok(ValidatedUser::new(email, row.requires_2fa))
     }
 
+    #[tracing::instrument(name = "Retrieving user from PostgreSQL", skip_all)]
     async fn get_user(&self, email: &Email) -> Result<User, UserStoreError> {
         let query = sqlx::query!(
             r#"
@@ -115,6 +114,7 @@ impl UserStore for PostgresUserStore {
         Ok(user)
     }
 
+    #[tracing::instrument(name = "Delete user from user store", skip_all)]
     async fn delete_user(&mut self, user: &Email) -> Result<(), UserStoreError> {
         let query = sqlx::query!(
             r#"
@@ -137,21 +137,32 @@ impl UserStore for PostgresUserStore {
     }
 }
 
-fn verify_password_hash(
-    expected_password_hash: &str,
-    password_candidate: &str,
-) -> Result<(), Box<dyn Error>> {
-    let expected_password_hash: PasswordHash<'_> = PasswordHash::new(expected_password_hash)?;
+#[tracing::instrument(name = "Verify password hash", skip_all)]
+async fn verify_password_hash(
+    expected_password_hash: String,
+    password_candidate: String,
+) -> Result<(), Box<dyn Error + Send + Sync>> {
+    let current_span: tracing::Span = tracing::Span::current(); // New!
+    let result = tokio::task::spawn_blocking(move || {
+        current_span.in_scope(|| {
+            let expected_password_hash: PasswordHash<'_> =
+                PasswordHash::new(&expected_password_hash)?;
 
-    Argon2::new(
-        Algorithm::Argon2id,
-        Version::V0x13,
-        Params::new(15000, 2, 1, None)?,
-    )
-    .verify_password(password_candidate.as_bytes(), &expected_password_hash)
-    .map_err(|e| e.into())
+            Argon2::new(
+                Algorithm::Argon2id,
+                Version::V0x13,
+                Params::new(15000, 2, 1, None)?,
+            )
+            .verify_password(password_candidate.as_bytes(), &expected_password_hash)
+            .map_err(|e| e.into())
+        })
+    })
+    .await?;
+
+    result
 }
 
+#[tracing::instrument(name = "Computing password hash", skip_all)]
 fn compute_password_hash(password: &str) -> Result<String, Box<dyn Error>> {
     let salt: SaltString = SaltString::generate(rand_core::OsRng);
     let hasher = Argon2::new(
@@ -167,7 +178,7 @@ fn compute_password_hash(password: &str) -> Result<String, Box<dyn Error>> {
 #[cfg(test)]
 mod tests {
 
-    use crate::get_postgres_pool;
+    use crate::application::get_postgres_pool;
 
     use super::*;
     use sqlx::PgPool;
@@ -466,36 +477,36 @@ mod tests {
         assert_ne!(hash, password); // Hash should be different from original password
     }
 
-    #[test]
-    fn test_verify_password_hash_success() {
+    #[tokio::test]
+    async fn test_verify_password_hash_success() {
         let password = "testpassword123";
         let hash = compute_password_hash(password).unwrap();
 
-        let result = verify_password_hash(&hash, password);
+        let result = verify_password_hash(hash, password.to_owned()).await;
         assert!(result.is_ok());
     }
 
-    #[test]
-    fn test_verify_password_hash_failure() {
+    #[tokio::test]
+    async fn test_verify_password_hash_failure() {
         let password = "testpassword123";
         let wrong_password = "wrongpassword";
         let hash = compute_password_hash(password).unwrap();
 
-        let result = verify_password_hash(&hash, wrong_password);
+        let result = verify_password_hash(hash, wrong_password.to_owned()).await;
         assert!(result.is_err());
     }
 
-    #[test]
-    fn test_verify_password_hash_invalid_hash() {
+    #[tokio::test]
+    async fn test_verify_password_hash_invalid_hash() {
         let invalid_hash = "invalid_hash_format";
         let password = "testpassword123";
 
-        let result = verify_password_hash(invalid_hash, password);
+        let result = verify_password_hash(invalid_hash.to_owned(), password.to_owned()).await;
         assert!(result.is_err());
     }
 
-    #[test]
-    fn test_compute_password_hash_deterministic_salt() {
+    #[tokio::test]
+    async fn test_compute_password_hash_deterministic_salt() {
         let password = "testpassword123";
         let hash1 = compute_password_hash(password).unwrap();
         let hash2 = compute_password_hash(password).unwrap();
@@ -504,7 +515,15 @@ mod tests {
         assert_ne!(hash1, hash2);
 
         // But both should verify successfully
-        assert!(verify_password_hash(&hash1, password).is_ok());
-        assert!(verify_password_hash(&hash2, password).is_ok());
+        assert!(
+            verify_password_hash(hash1.to_owned(), password.to_owned())
+                .await
+                .is_ok()
+        );
+        assert!(
+            verify_password_hash(hash2.to_owned(), password.to_owned())
+                .await
+                .is_ok()
+        );
     }
 }

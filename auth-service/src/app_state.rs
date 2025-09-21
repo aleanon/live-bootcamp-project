@@ -1,41 +1,81 @@
-use std::sync::Arc;
-use tokio::sync::RwLock;
+use crate::services::data_stores::MockEmailClient;
+use crate::services::data_stores::PostgresUserStore;
+use crate::services::data_stores::RedisBannedTokenStore;
+use crate::services::data_stores::RedisTwoFaCodeStore;
 
-use crate::domain::data_stores::BannedTokenStore as BannedTokensStoreTrait;
-use crate::domain::data_stores::TwoFaCodeStore as TwoFaCodeStoreTrait;
-use crate::domain::data_stores::UserStore as UserStoreTrait;
-use crate::domain::email_client::EmailClient as EmailClientTrait;
-use crate::utils::config::Config;
+pub type AppState<
+    UserStore = PostgresUserStore,
+    BannedTokenStore = RedisBannedTokenStore,
+    TwoFaCodeStore = RedisTwoFaCodeStore,
+    EmailClient = MockEmailClient,
+> = actual::AppState<UserStore, BannedTokenStore, TwoFaCodeStore, EmailClient>;
 
-type UserStore = Arc<RwLock<dyn UserStoreTrait>>;
-type BannedTokenStore = Arc<RwLock<dyn BannedTokensStoreTrait>>;
-type TwoFaCodeStore = Arc<RwLock<dyn TwoFaCodeStoreTrait>>;
-type EmailClient = Arc<RwLock<dyn EmailClientTrait>>;
+pub mod actual {
 
-#[derive(Clone)]
-pub struct AppState {
-    pub user_store: UserStore,
-    pub banned_token_store: BannedTokenStore,
-    pub two_fa_code_store: TwoFaCodeStore,
-    pub email_client: EmailClient,
-    pub config: Arc<RwLock<Config>>,
-}
+    use crate::domain::data_stores::BannedTokenStore as BannedTokensStoreTrait;
+    use crate::domain::data_stores::TwoFaCodeStore as TwoFaCodeStoreTrait;
+    use crate::domain::data_stores::UserStore as UserStoreTrait;
+    use crate::domain::email_client::EmailClient as EmailClientTrait;
+    use crate::utils::config::Config;
+    use std::sync::Arc;
+    use tokio::sync::RwLock;
 
-impl AppState {
-    pub fn new(
-        user_store: UserStore,
-        banned_token_store: BannedTokenStore,
-        two_fa_code_store: TwoFaCodeStore,
-        email_client: EmailClient,
-    ) -> Self {
-        let config = Config::load();
+    pub struct AppState<UserStore, BannedTokenStore, TwoFaCodeStore, EmailClient>
+    where
+        UserStore: UserStoreTrait,
+        BannedTokenStore: BannedTokensStoreTrait,
+        TwoFaCodeStore: TwoFaCodeStoreTrait,
+        EmailClient: EmailClientTrait,
+    {
+        pub user_store: Arc<RwLock<UserStore>>,
+        pub banned_token_store: Arc<RwLock<BannedTokenStore>>,
+        pub two_fa_code_store: Arc<RwLock<TwoFaCodeStore>>,
+        pub email_client: Arc<RwLock<EmailClient>>,
+        pub config: Arc<RwLock<Config>>,
+    }
 
-        AppState {
-            user_store,
-            banned_token_store,
-            two_fa_code_store,
-            email_client,
-            config: Arc::new(RwLock::new(config)),
+    impl<UserStore, BannedTokenStore, TwoFaCodeStore, EmailClient>
+        AppState<UserStore, BannedTokenStore, TwoFaCodeStore, EmailClient>
+    where
+        UserStore: UserStoreTrait,
+        BannedTokenStore: BannedTokensStoreTrait,
+        TwoFaCodeStore: TwoFaCodeStoreTrait,
+        EmailClient: EmailClientTrait,
+    {
+        pub fn new(
+            user_store: Arc<RwLock<UserStore>>,
+            banned_token_store: Arc<RwLock<BannedTokenStore>>,
+            two_fa_code_store: Arc<RwLock<TwoFaCodeStore>>,
+            email_client: Arc<RwLock<EmailClient>>,
+        ) -> Self {
+            let config = Config::load();
+
+            AppState {
+                user_store,
+                banned_token_store,
+                two_fa_code_store,
+                email_client,
+                config: Arc::new(RwLock::new(config)),
+            }
+        }
+    }
+
+    impl<UserStore, BannedTokenStore, TwoFaTokenStore, EmailClient> Clone
+        for AppState<UserStore, BannedTokenStore, TwoFaTokenStore, EmailClient>
+    where
+        UserStore: UserStoreTrait,
+        BannedTokenStore: BannedTokensStoreTrait,
+        TwoFaTokenStore: TwoFaCodeStoreTrait,
+        EmailClient: EmailClientTrait,
+    {
+        fn clone(&self) -> Self {
+            Self {
+                user_store: self.user_store.clone(),
+                banned_token_store: self.banned_token_store.clone(),
+                two_fa_code_store: self.two_fa_code_store.clone(),
+                email_client: self.email_client.clone(),
+                config: self.config.clone(),
+            }
         }
     }
 }
