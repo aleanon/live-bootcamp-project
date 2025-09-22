@@ -3,6 +3,7 @@ use axum_extra::extract::{
     cookie::{Cookie, SameSite},
 };
 use chrono::Utc;
+use color_eyre::eyre::eyre;
 use jsonwebtoken::{DecodingKey, EncodingKey, Validation, decode, encode};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -24,7 +25,7 @@ pub enum TokenAuthError {
     #[error("Token is banned")]
     TokenIsBanned,
     #[error("Unexpected error")]
-    UnexpectedError,
+    UnexpectedError(#[source] color_eyre::Report),
 }
 
 pub fn extract_token<'a>(jar: &'a CookieJar, cookie_name: &str) -> Result<&'a str, TokenAuthError> {
@@ -75,19 +76,22 @@ fn generate_auth_token(
     token_ttl_seconds: i64,
     secret: &[u8],
 ) -> Result<String, TokenAuthError> {
-    let delta =
-        chrono::Duration::try_seconds(token_ttl_seconds).ok_or(TokenAuthError::UnexpectedError)?;
+    let delta = chrono::Duration::try_seconds(token_ttl_seconds).ok_or(
+        TokenAuthError::UnexpectedError(eyre!("Failed to create auth token duration")),
+    )?;
 
     // Create JWT expiration time
     let exp = Utc::now()
         .checked_add_signed(delta)
-        .ok_or(TokenAuthError::UnexpectedError)?
+        .ok_or(TokenAuthError::UnexpectedError(eyre!(
+            "Duration out of range"
+        )))?
         .timestamp();
 
     // Cast exp to a usize, which is what Claims expects
     let exp: usize = exp
         .try_into()
-        .map_err(|_| TokenAuthError::UnexpectedError)?;
+        .map_err(|_| TokenAuthError::UnexpectedError(eyre!("Failed to cast i64 to usize")))?;
 
     let sub = email.as_ref().to_owned();
 
@@ -129,7 +133,7 @@ async fn validate_token(
     let is_banned = banned_token_store
         .contains_token(&token)
         .await
-        .map_err(|_| TokenAuthError::UnexpectedError)?;
+        .map_err(|e| TokenAuthError::UnexpectedError(eyre!(e)))?;
 
     if is_banned {
         return Err(TokenAuthError::TokenIsBanned);

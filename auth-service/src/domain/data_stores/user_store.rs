@@ -1,3 +1,4 @@
+use color_eyre::Report;
 use thiserror::Error;
 
 use crate::domain::{
@@ -6,7 +7,7 @@ use crate::domain::{
     user::{User, ValidatedUser},
 };
 
-#[derive(Debug, PartialEq, Error)]
+#[derive(Debug, Error)]
 pub enum UserStoreError {
     #[error("User already exists")]
     UserAlreadyExists,
@@ -14,8 +15,20 @@ pub enum UserStoreError {
     UserNotFound,
     #[error("Incorrect password")]
     IncorrectPassword,
-    #[error("Unexpected error")]
-    UnexpectedError,
+    #[error("Unexpected error {0}")]
+    UnexpectedError(#[source] Report),
+}
+
+impl PartialEq for UserStoreError {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::UserAlreadyExists, Self::UserAlreadyExists) => true,
+            (Self::UserNotFound, Self::UserNotFound) => true,
+            (Self::IncorrectPassword, Self::IncorrectPassword) => true,
+            (Self::UnexpectedError(_), Self::UnexpectedError(_)) => true,
+            _ => false,
+        }
+    }
 }
 
 #[async_trait::async_trait]

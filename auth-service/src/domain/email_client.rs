@@ -5,7 +5,7 @@ use super::email::Email;
 #[derive(Debug, Error)]
 pub enum EmailClientError {
     #[error("Unexpected error")]
-    UnexpectedError,
+    UnexpectedError(#[source] color_eyre::Report),
 }
 
 #[async_trait::async_trait]

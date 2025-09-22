@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use color_eyre::eyre::eyre;
 use redis::Commands;
 use tokio::sync::Mutex;
 
@@ -31,13 +32,13 @@ impl TwoFaCodeStore for RedisTwoFaCodeStore {
         let key = get_key(&user_id);
 
         let value = serde_json::to_string(&(login_attempt_id, two_fa_code))
-            .map_err(|_| TwoFaCodeStoreError::UnexpectedError)?;
+            .map_err(|e| TwoFaCodeStoreError::UnexpectedError(eyre!(e)))?;
 
         self.client
             .lock()
             .await
             .set_ex(key, value, TEN_MINUTES_IN_SECONDS)
-            .map_err(|_| TwoFaCodeStoreError::UnexpectedError)
+            .map_err(|e| TwoFaCodeStoreError::UnexpectedError(eyre!(e)))
     }
 
     async fn validate(
@@ -73,7 +74,8 @@ impl TwoFaCodeStore for RedisTwoFaCodeStore {
             .map_err(|_| TwoFaCodeStoreError::UserNotFound)?;
 
         let (login_attempt_id, two_fa_code): (TwoFaAttemptId, TwoFaCode) =
-            serde_json::from_str(&json_value).map_err(|_| TwoFaCodeStoreError::UnexpectedError)?;
+            serde_json::from_str(&json_value)
+                .map_err(|e| TwoFaCodeStoreError::UnexpectedError(eyre!(e)))?;
 
         Ok((login_attempt_id, two_fa_code))
     }

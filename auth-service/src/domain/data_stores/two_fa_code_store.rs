@@ -1,7 +1,6 @@
 use crate::domain::{email::Email, two_fa_attempt_id::TwoFaAttemptId, two_fa_code::TwoFaCode};
 use thiserror::Error;
 
-#[cfg_attr(debug_assertions, derive(PartialEq))]
 #[derive(Debug, Error)]
 pub enum TwoFaCodeStoreError {
     #[error("User not found")]
@@ -11,7 +10,20 @@ pub enum TwoFaCodeStoreError {
     #[error("Invalid 2FA code")]
     Invalid2FACode,
     #[error("Unexpected error")]
-    UnexpectedError,
+    UnexpectedError(#[source] color_eyre::Report),
+}
+
+#[cfg(debug_assertions)]
+impl PartialEq for TwoFaCodeStoreError {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::UserNotFound, Self::UserNotFound) => true,
+            (Self::InvalidAttemptId, Self::InvalidAttemptId) => true,
+            (Self::Invalid2FACode, Self::Invalid2FACode) => true,
+            (Self::UnexpectedError(_), Self::UnexpectedError(_)) => true,
+            _ => false,
+        }
+    }
 }
 
 #[async_trait::async_trait]

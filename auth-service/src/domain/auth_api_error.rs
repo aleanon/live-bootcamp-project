@@ -3,6 +3,7 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
 };
+use color_eyre::Report;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -37,7 +38,7 @@ pub enum AuthApiError {
     #[error("Invalid two-factor authentication code")]
     InvalidTwoFaCode,
     #[error("Unexpected error")]
-    UnexpectedError,
+    UnexpectedError(#[source] Report),
 }
 
 impl IntoResponse for AuthApiError {
@@ -51,7 +52,9 @@ impl IntoResponse for AuthApiError {
             | AuthApiError::UserNotFound
             | AuthApiError::InvalidLoginAttemptId
             | AuthApiError::InvalidTwoFaCode => (StatusCode::UNAUTHORIZED, self.to_string()),
-            AuthApiError::UnexpectedError => (StatusCode::INTERNAL_SERVER_ERROR, self.to_string()),
+            AuthApiError::UnexpectedError(_) => {
+                (StatusCode::INTERNAL_SERVER_ERROR, self.to_string())
+            }
         };
 
         let body = Json(ErrorResponse {
@@ -76,7 +79,7 @@ impl From<UserStoreError> for AuthApiError {
     fn from(error: UserStoreError) -> Self {
         match error {
             UserStoreError::UserAlreadyExists => AuthApiError::UserAlreadyExists,
-            UserStoreError::UnexpectedError => AuthApiError::UnexpectedError,
+            UserStoreError::UnexpectedError(e) => AuthApiError::UnexpectedError(e),
             UserStoreError::UserNotFound => AuthApiError::UserNotFound,
             UserStoreError::IncorrectPassword => AuthApiError::AuthenticationError(Box::new(error)),
         }
@@ -90,7 +93,7 @@ impl From<TokenAuthError> for AuthApiError {
             | TokenAuthError::TokenError(_)
             | TokenAuthError::TokenIsBanned => AuthApiError::AuthenticationError(Box::new(error)),
             TokenAuthError::MissingToken => AuthApiError::MissingToken,
-            TokenAuthError::UnexpectedError => AuthApiError::UnexpectedError,
+            TokenAuthError::UnexpectedError(e) => AuthApiError::UnexpectedError(e),
         }
     }
 }
@@ -98,7 +101,7 @@ impl From<TokenAuthError> for AuthApiError {
 impl From<BannedTokenStoreError> for AuthApiError {
     fn from(error: BannedTokenStoreError) -> Self {
         match error {
-            BannedTokenStoreError::DatabaseError(_) => AuthApiError::UnexpectedError,
+            BannedTokenStoreError::DatabaseError(e) => AuthApiError::UnexpectedError(e),
         }
     }
 }
@@ -106,7 +109,7 @@ impl From<BannedTokenStoreError> for AuthApiError {
 impl From<TwoFaCodeStoreError> for AuthApiError {
     fn from(error: TwoFaCodeStoreError) -> Self {
         match error {
-            TwoFaCodeStoreError::UnexpectedError => AuthApiError::UnexpectedError,
+            TwoFaCodeStoreError::UnexpectedError(e) => AuthApiError::UnexpectedError(e),
             TwoFaCodeStoreError::UserNotFound => AuthApiError::UserNotFound,
             TwoFaCodeStoreError::InvalidAttemptId | TwoFaCodeStoreError::Invalid2FACode => {
                 AuthApiError::AuthenticationError(Box::new(error))
@@ -118,7 +121,7 @@ impl From<TwoFaCodeStoreError> for AuthApiError {
 impl From<EmailClientError> for AuthApiError {
     fn from(error: EmailClientError) -> Self {
         match error {
-            EmailClientError::UnexpectedError => AuthApiError::UnexpectedError,
+            EmailClientError::UnexpectedError(e) => AuthApiError::UnexpectedError(e),
         }
     }
 }

@@ -3,7 +3,7 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 pub enum BannedTokenStoreError {
     #[error("Database error: {0}")]
-    DatabaseError(String),
+    DatabaseError(#[source] color_eyre::Report),
 }
 
 #[async_trait::async_trait]
