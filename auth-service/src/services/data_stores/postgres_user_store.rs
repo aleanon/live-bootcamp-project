@@ -3,6 +3,7 @@ use argon2::{
     password_hash::{PasswordHasher, SaltString, rand_core},
 };
 use color_eyre::eyre::{Result, eyre};
+use secrecy::{ExposeSecret, Secret};
 use sqlx::{Pool, Postgres};
 
 use crate::domain::{
@@ -36,8 +37,8 @@ impl UserStore for PostgresUserStore {
                 INSERT INTO users (email, password_hash, requires_2fa)
                 VALUES ($1, $2, $3)
             "#,
-            user.email().as_ref(),
-            password_hash,
+            user.email().as_ref().expose_secret(),
+            password_hash.expose_secret(),
             user.requires_2fa()
         );
 
@@ -64,7 +65,7 @@ impl UserStore for PostgresUserStore {
                 FROM users
                 WHERE email = $1
             "#,
-            email.as_ref()
+            email.as_ref().expose_secret()
         );
 
         let row = query
@@ -76,14 +77,12 @@ impl UserStore for PostgresUserStore {
             return Err(UserStoreError::UserNotFound);
         };
 
-        let password = password.as_ref().to_owned();
-
-        verify_password_hash(row.password_hash, password)
+        verify_password_hash(Secret::from(row.password_hash), password.clone())
             .await
             .map_err(|_| UserStoreError::IncorrectPassword)?;
 
-        let email =
-            Email::try_from(row.email).map_err(|e| UserStoreError::UnexpectedError(eyre!(e)))?;
+        let email = Email::try_from(Secret::from(row.email))
+            .map_err(|e| UserStoreError::UnexpectedError(eyre!(e)))?;
         Ok(ValidatedUser::new(email, row.requires_2fa))
     }
 
@@ -95,7 +94,7 @@ impl UserStore for PostgresUserStore {
                 FROM users
                 WHERE email = $1
             "#,
-            email.as_ref()
+            email.as_ref().expose_secret()
         );
 
         let row = query
@@ -107,8 +106,13 @@ impl UserStore for PostgresUserStore {
             return Err(UserStoreError::UserNotFound);
         };
 
-        let user = User::parse(row.email, row.password_hash, row.requires_2fa)
-            .map_err(|e| UserStoreError::UnexpectedError(eyre!(e)))?;
+        //TODO: Implement hashing in the UserStruct
+        let user = User::parse(
+            Secret::from(row.email),
+            Secret::from(row.password_hash),
+            row.requires_2fa,
+        )
+        .map_err(|e| UserStoreError::UnexpectedError(eyre!(e)))?;
 
         Ok(user)
     }
@@ -120,7 +124,7 @@ impl UserStore for PostgresUserStore {
                 DELETE FROM users
                 WHERE email = $1
             "#,
-            user.as_ref()
+            user.as_ref().expose_secret()
         );
 
         let result = query
@@ -138,21 +142,24 @@ impl UserStore for PostgresUserStore {
 
 #[tracing::instrument(name = "Verify password hash", skip_all)]
 async fn verify_password_hash(
-    expected_password_hash: String,
-    password_candidate: String,
+    expected_password_hash: Secret<String>,
+    password_candidate: Password,
 ) -> Result<()> {
     let current_span: tracing::Span = tracing::Span::current();
     let result = tokio::task::spawn_blocking(move || {
         current_span.in_scope(|| {
             let expected_password_hash: PasswordHash<'_> =
-                PasswordHash::new(&expected_password_hash)?;
+                PasswordHash::new(expected_password_hash.expose_secret())?;
 
             Argon2::new(
                 Algorithm::Argon2id,
                 Version::V0x13,
                 Params::new(15000, 2, 1, None)?,
             )
-            .verify_password(password_candidate.as_bytes(), &expected_password_hash)
+            .verify_password(
+                password_candidate.as_ref().expose_secret().as_bytes(),
+                &expected_password_hash,
+            )
             .map_err(|e| e.into())
         })
     })
@@ -162,7 +169,7 @@ async fn verify_password_hash(
 }
 
 #[tracing::instrument(name = "Computing password hash", skip_all)]
-async fn compute_password_hash(password: Password) -> Result<String> {
+async fn compute_password_hash(password: Password) -> Result<Secret<String>> {
     let current_span: tracing::Span = tracing::Span::current();
 
     let result = tokio::task::spawn_blocking(move || {
@@ -174,8 +181,8 @@ async fn compute_password_hash(password: Password) -> Result<String> {
                 Params::new(15000, 2, 1, None)?,
             );
             hasher
-                .hash_password(password.as_ref().as_bytes(), &salt)
-                .map(|h| h.to_string())
+                .hash_password(password.as_ref().expose_secret().as_bytes(), &salt)
+                .map(|h| Secret::from(h.to_string()))
                 .map_err(Into::into)
         })
     })
@@ -190,6 +197,7 @@ mod tests {
     use crate::application::get_postgres_pool;
 
     use super::*;
+    use secrecy::{ExposeSecret, Secret};
     use sqlx::PgPool;
     use testcontainers_modules::{
         postgres,
@@ -306,8 +314,8 @@ mod tests {
     fn create_test_user() -> User {
         let unique_id = uuid::Uuid::new_v4();
         User::new(
-            Email::try_from(format!("test{}@example.com", unique_id)).unwrap(),
-            Password::try_from("password123".to_string()).unwrap(),
+            Email::try_from(Secret::from(format!("test{}@example.com", unique_id))).unwrap(),
+            Password::try_from(Secret::from("password123".to_string())).unwrap(),
             false,
         )
     }
@@ -315,8 +323,8 @@ mod tests {
     fn create_test_user_with_2fa() -> User {
         let unique_id = uuid::Uuid::new_v4();
         User::new(
-            Email::try_from(format!("test2fa{}@example.com", unique_id)).unwrap(),
-            Password::try_from("password123".to_string()).unwrap(),
+            Email::try_from(Secret::from(format!("test2fa{}@example.com", unique_id))).unwrap(),
+            Password::try_from(Secret::from("password123".to_string())).unwrap(),
             true,
         )
     }
@@ -394,8 +402,8 @@ mod tests {
     async fn test_authenticate_user_not_found() {
         let (_container, pool) = setup_and_connect_db_container().await;
         let store = PostgresUserStore::new(pool);
-        let email = Email::try_from("nonexistent@example.com".to_string()).unwrap();
-        let password = Password::try_from("password123".to_string()).unwrap();
+        let email = Email::try_from(Secret::from("nonexistent@example.com".to_string())).unwrap();
+        let password = Password::try_from(Secret::from("password123".to_string())).unwrap();
 
         let result = store.authenticate_user(&email, &password).await;
         assert_eq!(result, Err(UserStoreError::UserNotFound));
@@ -407,7 +415,7 @@ mod tests {
         let mut store = PostgresUserStore::new(pool);
         let user = create_test_user();
         let email = user.email().clone();
-        let wrong_password = Password::try_from("wrongpassword".to_string()).unwrap();
+        let wrong_password = Password::try_from(Secret::from("wrongpassword".to_string())).unwrap();
 
         // Add user first
         store.add_user(user).await.unwrap();
@@ -440,7 +448,7 @@ mod tests {
     async fn test_get_user_not_found() {
         let (_container, pool) = setup_and_connect_db_container().await;
         let store = PostgresUserStore::new(pool);
-        let email = Email::try_from("nonexistent@example.com".to_string()).unwrap();
+        let email = Email::try_from(Secret::from("nonexistent@example.com".to_string())).unwrap();
 
         let result = store.get_user(&email).await;
         assert_eq!(result, Err(UserStoreError::UserNotFound));
@@ -469,7 +477,7 @@ mod tests {
     async fn test_delete_user_not_found() {
         let (_container, pool) = setup_and_connect_db_container().await;
         let mut store = PostgresUserStore::new(pool);
-        let email = Email::try_from("nonexistent@example.com".to_string()).unwrap();
+        let email = Email::try_from(Secret::from("nonexistent@example.com".to_string())).unwrap();
 
         let result = store.delete_user(&email).await;
         assert_eq!(result, Err(UserStoreError::UserNotFound));
@@ -477,62 +485,54 @@ mod tests {
 
     #[tokio::test]
     async fn test_compute_password_hash() {
-        let password = Password::try_from("testpassword123".to_owned()).unwrap();
+        let password = Password::try_from(Secret::from("testpassword123".to_owned())).unwrap();
         let hash_result = compute_password_hash(password.clone()).await;
 
         assert!(hash_result.is_ok());
         let hash = hash_result.unwrap();
-        assert!(!hash.is_empty());
-        assert_ne!(hash, password.as_ref()); // Hash should be different from original password
+        assert!(!hash.expose_secret().is_empty());
+        assert_ne!(hash.expose_secret(), password.as_ref().expose_secret());
     }
 
     #[tokio::test]
     async fn test_verify_password_hash_success() {
-        let password = Password::try_from("testpassword123".to_owned()).unwrap();
+        let password = Password::try_from(Secret::from("testpassword123".to_owned())).unwrap();
         let hash = compute_password_hash(password.clone()).await.unwrap();
 
-        let result = verify_password_hash(hash, password.as_ref().to_owned()).await;
+        let result = verify_password_hash(hash, password).await;
         assert!(result.is_ok());
     }
 
     #[tokio::test]
     async fn test_verify_password_hash_failure() {
-        let password = Password::try_from("testpassword123".to_owned()).unwrap();
-        let wrong_password = Password::try_from("wrongpassword".to_owned()).unwrap();
+        let password = Password::try_from(Secret::from("testpassword123".to_owned())).unwrap();
+        let wrong_password = Password::try_from(Secret::from("wrongpassword".to_owned())).unwrap();
         let hash = compute_password_hash(password).await.unwrap();
 
-        let result = verify_password_hash(hash, wrong_password.as_ref().to_owned()).await;
+        let result = verify_password_hash(hash, wrong_password).await;
         assert!(result.is_err());
     }
 
     #[tokio::test]
     async fn test_verify_password_hash_invalid_hash() {
-        let invalid_hash = "invalid_hash_format";
-        let password = "testpassword123";
+        let invalid_hash = Secret::from("invalid_hash_format".to_owned());
+        let password = Password::try_from(Secret::from("testpassword123".to_owned())).unwrap();
 
-        let result = verify_password_hash(invalid_hash.to_owned(), password.to_owned()).await;
+        let result = verify_password_hash(invalid_hash, password).await;
         assert!(result.is_err());
     }
 
     #[tokio::test]
     async fn test_compute_password_hash_deterministic_salt() {
-        let password = Password::try_from("testpassword123".to_owned()).unwrap();
+        let password = Password::try_from(Secret::from("testpassword123".to_owned())).unwrap();
         let hash1 = compute_password_hash(password.clone()).await.unwrap();
         let hash2 = compute_password_hash(password.clone()).await.unwrap();
 
         // Hashes should be different due to random salt
-        assert_ne!(hash1, hash2);
+        assert_ne!(hash1.expose_secret(), hash2.expose_secret());
 
         // But both should verify successfully
-        assert!(
-            verify_password_hash(hash1, password.clone().as_ref().to_owned())
-                .await
-                .is_ok()
-        );
-        assert!(
-            verify_password_hash(hash2, password.as_ref().to_owned())
-                .await
-                .is_ok()
-        );
+        assert!(verify_password_hash(hash1, password.clone()).await.is_ok());
+        assert!(verify_password_hash(hash2, password.clone()).await.is_ok());
     }
 }

@@ -1,11 +1,12 @@
+use secrecy::Secret;
 use serde::Deserialize;
 
 use crate::domain::{email::Email, password::Password, user::UserError};
 
 #[derive(Debug, Deserialize)]
 pub struct LoginRequest {
-    pub email: String,
-    pub password: String,
+    pub email: Secret<String>,
+    pub password: Secret<String>,
 }
 
 #[derive(Debug)]
@@ -15,10 +16,10 @@ pub struct ValidLoginRequest {
 }
 
 impl ValidLoginRequest {
-    pub fn parse(email: String, password: String) -> Result<Self, UserError> {
+    pub fn parse(login_request: LoginRequest) -> Result<Self, UserError> {
         Ok(Self {
-            email: Email::try_from(email)?,
-            password: Password::try_from(password)?,
+            email: Email::try_from(login_request.email)?,
+            password: Password::try_from(login_request.password)?,
         })
     }
 

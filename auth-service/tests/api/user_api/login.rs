@@ -8,6 +8,7 @@ use auth_service::{
     },
     responses::login::TwoFactorAuthResponse,
 };
+use secrecy::Secret;
 
 use crate::helpers::{TestApp, get_standard_test_user};
 
@@ -63,7 +64,7 @@ async fn should_return_206_when_2fa_enabled() {
     let login_id = TwoFaAttemptId::parse(&response.attempt_id).expect("Invalid code");
 
     let two_fa_code_store = app.two_fa_code_store.read().await;
-    let email = Email::try_from("test@example.com".to_string()).unwrap();
+    let email = Email::try_from(Secret::new("test@example.com".to_string())).unwrap();
     let (login_attempt_id, _) = two_fa_code_store
         .get_login_attempt_id_and_two_fa_code(&email)
         .await

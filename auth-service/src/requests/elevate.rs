@@ -1,11 +1,12 @@
+use secrecy::Secret;
 use serde::Deserialize;
 
 use crate::domain::{email::Email, password::Password, user::UserError};
 
 #[derive(Debug, Deserialize)]
 pub struct ElevateRequest {
-    pub email: String,
-    pub password: String,
+    pub email: Secret<String>,
+    pub password: Secret<String>,
 }
 
 pub struct ValidElevateRequest {

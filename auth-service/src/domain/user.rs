@@ -1,3 +1,4 @@
+use secrecy::Secret;
 use thiserror::Error;
 
 use super::{email::Email, password::Password};
@@ -26,7 +27,11 @@ impl User {
         }
     }
 
-    pub fn parse(email: String, password: String, requires_2fa: bool) -> Result<Self, UserError> {
+    pub fn parse(
+        email: Secret<String>,
+        password: Secret<String>,
+        requires_2fa: bool,
+    ) -> Result<Self, UserError> {
         Ok(User {
             email: Email::try_from(email)?,
             password: Password::try_from(password)?,
@@ -87,20 +92,20 @@ mod tests {
     #[test]
     fn test_eq_only_matches_email() {
         let user1 = User::parse(
-            "test@example.com".to_owned(),
-            "passwordpassword123".to_owned(),
+            Secret::from("test@example.com".to_owned()),
+            Secret::from("passwordpassword123".to_owned()),
             false,
         )
         .unwrap();
         let user2 = User::parse(
-            "test@example.com".to_owned(),
-            "passwordpassword".to_owned(),
+            Secret::from("test@example.com".to_owned()),
+            Secret::from("passwordpassword".to_owned()),
             true,
         )
         .unwrap();
         let user3 = User::parse(
-            "test2@example.com".to_owned(),
-            "passwordpassword".to_owned(),
+            Secret::from("test2@example.com".to_owned()),
+            Secret::from("passwordpassword".to_owned()),
             false,
         )
         .unwrap();

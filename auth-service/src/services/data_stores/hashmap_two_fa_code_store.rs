@@ -85,12 +85,14 @@ impl TwoFaCodeStore for HashMapTwoFaCodeStore {
 
 #[cfg(test)]
 mod tests {
+    use secrecy::Secret;
+
     use super::*;
 
     #[tokio::test]
     async fn test_store_code() {
         let mut store = HashMapTwoFaCodeStore::new();
-        let user_id = Email::try_from("test@example.com".to_owned()).unwrap();
+        let user_id = Email::try_from(Secret::from("test@example.com".to_owned())).unwrap();
         let session_id = TwoFaAttemptId::new();
         let two_fa_code = TwoFaCode::new();
 
@@ -107,7 +109,7 @@ mod tests {
     #[tokio::test]
     async fn should_pass_valid_login_attempt_id_and_code() {
         let mut store = HashMapTwoFaCodeStore::new();
-        let user_id = Email::try_from("test@example.com".to_owned()).unwrap();
+        let user_id = Email::try_from(Secret::from("test@example.com".to_owned())).unwrap();
         let session_id = TwoFaAttemptId::new();
         let two_fa_code = TwoFaCode::new();
 
@@ -127,7 +129,7 @@ mod tests {
     #[tokio::test]
     async fn should_fail_with_invalid_login_attempt_id() {
         let mut store = HashMapTwoFaCodeStore::new();
-        let user_id = Email::try_from("test@example.com".to_owned()).unwrap();
+        let user_id = Email::try_from(Secret::from("test@example.com".to_owned())).unwrap();
         let session_id = TwoFaAttemptId::new();
         let two_fa_code = TwoFaCode::new();
 
@@ -147,7 +149,7 @@ mod tests {
     #[tokio::test]
     async fn should_fail_with_invalid_code() {
         let mut store = HashMapTwoFaCodeStore::new();
-        let user_id = Email::try_from("test@example.com".to_owned()).unwrap();
+        let user_id = Email::try_from(Secret::from("test@example.com".to_owned())).unwrap();
         let session_id = TwoFaAttemptId::new();
         let two_fa_code = TwoFaCode::new();
 
@@ -167,7 +169,7 @@ mod tests {
     #[tokio::test]
     async fn delete_should_pass_with_valid_user_id() {
         let mut store = HashMapTwoFaCodeStore::new();
-        let user_id = Email::try_from("test@example.com".to_owned()).unwrap();
+        let user_id = Email::try_from(Secret::from("test@example.com".to_owned())).unwrap();
         let session_id = TwoFaAttemptId::new();
         let two_fa_code = TwoFaCode::new();
 

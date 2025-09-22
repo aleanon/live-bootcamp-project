@@ -23,7 +23,7 @@ pub async fn login(
     jar: CookieJar,
     Json(login_request): Json<LoginRequest>,
 ) -> Result<impl IntoResponse, AuthApiError> {
-    let login_request = ValidLoginRequest::parse(login_request.email, login_request.password)?;
+    let login_request = ValidLoginRequest::parse(login_request)?;
 
     let validated_user = app_state
         .user_store

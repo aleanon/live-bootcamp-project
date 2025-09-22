@@ -53,14 +53,16 @@ impl UserStore for HashMapUserStore {
 
 #[cfg(test)]
 mod tests {
+    use secrecy::Secret;
+
     use super::*;
 
     #[tokio::test]
     async fn test_add_user_succeeds() {
         let mut store = HashMapUserStore::default();
         let user = User::parse(
-            "test@example.com".to_string(),
-            "passwordpassword".to_string(),
+            Secret::from("test@example.com".to_string()),
+            Secret::from("passwordpassword".to_string()),
             false,
         )
         .unwrap();
@@ -71,14 +73,14 @@ mod tests {
     async fn test_add_user_fails_if_user_exists() {
         let mut store = HashMapUserStore::default();
         let user = User::parse(
-            "test@example.com".to_string(),
-            "passwordpassword".to_string(),
+            Secret::from("test@example.com".to_string()),
+            Secret::from("passwordpassword".to_string()),
             false,
         )
         .unwrap();
         let user2 = User::parse(
-            "test@example.com".to_string(),
-            "passwordpassword".to_string(),
+            Secret::from("test@example.com".to_string()),
+            Secret::from("passwordpassword".to_string()),
             false,
         )
         .unwrap();
@@ -93,8 +95,8 @@ mod tests {
     async fn test_get_user() {
         let mut user_store = HashMapUserStore::default();
         let user = User::parse(
-            "test@example.com".to_string(),
-            "passwordpassword".to_string(),
+            Secret::from("test@example.com".to_string()),
+            Secret::from("passwordpassword".to_string()),
             false,
         )
         .unwrap();
@@ -106,8 +108,8 @@ mod tests {
     #[tokio::test]
     async fn test_validate_user() {
         let user = User::parse(
-            "test@example.com".to_string(),
-            "passwordpassword".to_string(),
+            Secret::from("test@example.com".to_string()),
+            Secret::from("passwordpassword".to_string()),
             false,
         )
         .unwrap();
@@ -117,7 +119,8 @@ mod tests {
             user_store
                 .authenticate_user(
                     user.email(),
-                    &Password::try_from("passwordpassword".to_string()).unwrap()
+                    &Password::try_from(Secret::from("passwordpassword".to_string()))
+                        .unwrap()
                 )
                 .await
                 .is_ok()
@@ -126,7 +129,7 @@ mod tests {
             user_store
                 .authenticate_user(
                     user.email(),
-                    &Password::try_from("wrongpassword".to_string()).unwrap()
+                    &Password::try_from(Secret::from("wrongpassword".to_string())).unwrap()
                 )
                 .await,
             Err(UserStoreError::IncorrectPassword)
@@ -136,8 +139,8 @@ mod tests {
     #[tokio::test]
     async fn test_delete_user() {
         let user = User::parse(
-            "test@example.com".to_string(),
-            "passwordpassword".to_string(),
+            Secret::from("test@example.com".to_string()),
+            Secret::from("passwordpassword".to_string()),
             false,
         )
         .unwrap();

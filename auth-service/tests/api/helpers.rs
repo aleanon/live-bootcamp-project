@@ -20,6 +20,7 @@ use reqwest::{
     Url,
     cookie::{CookieStore, Jar},
 };
+use secrecy::Secret;
 use serde::Serialize;
 use serde_json::Value;
 use sqlx::PgPool;
@@ -103,7 +104,7 @@ impl TestApp {
     }
 
     pub async fn get_verify_two_fa_request(&self, body: &Value) -> Verify2FARequest {
-        let email = Email::try_from(body["email"].as_str().unwrap().to_string())
+        let email = Email::try_from(Secret::new(body["email"].as_str().unwrap().to_string()))
             .expect("Failed to parse Email address");
 
         let (login_attempt_id, code) = self
@@ -115,7 +116,7 @@ impl TestApp {
             .expect("Failed to get login attempt id and two fa code");
 
         Verify2FARequest {
-            email: email.as_ref().to_string(),
+            email: email.as_ref().to_owned(),
             login_attempt_id: login_attempt_id.to_string(),
             two_factor_code: code.to_string(),
         }

@@ -3,6 +3,7 @@ use auth_service::{
     requests::verify_2fa::Verify2FARequest,
     utils::auth,
 };
+use secrecy::ExposeSecret;
 
 use crate::helpers::{TestApp, get_standard_test_user};
 
@@ -24,7 +25,7 @@ async fn should_return_200() {
     } = app.get_verify_two_fa_request(&body).await;
 
     let body = serde_json::json!({
-        "email": email,
+        "email": email.expose_secret(),
         "loginAttemptId": login_attempt_id,
         "2FACode": two_factor_code
     });
@@ -57,7 +58,7 @@ async fn should_return_400_with_invalid_input() {
     login_attempt_id.push_str("invalid");
 
     let body = serde_json::json!({
-        "email": email,
+        "email": email.expose_secret(),
         "loginAttemptId": login_attempt_id,
         "2FACode": two_factor_code
     });
@@ -85,7 +86,7 @@ async fn should_return_401_with_outdated_login_attempt_id() {
     assert!(app.login(&body).await.status().as_u16() == 206);
 
     let body = serde_json::json!({
-        "email": email,
+        "email": email.expose_secret(),
         "loginAttemptId": login_attempt_id,
         "2FACode": two_factor_code
     });
@@ -121,7 +122,7 @@ async fn should_return_401_if_same_code_twice() {
     } = app.get_verify_two_fa_request(&body).await;
 
     let body = serde_json::json!({
-        "email": email,
+        "email": email.expose_secret(),
         "loginAttemptId": login_attempt_id,
         "2FACode": two_factor_code
     });
@@ -149,7 +150,7 @@ async fn should_return_422_when_malformed_input() {
     } = app.get_verify_two_fa_request(&body).await;
 
     let body = serde_json::json!({
-        "email": email,
+        "email": email.expose_secret(),
         "loginAttemptI": login_attempt_id, //Missing the last d
         "2FACode": two_factor_code
     });
