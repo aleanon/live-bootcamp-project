@@ -11,6 +11,7 @@ use crate::{
     utils::auth,
 };
 
+#[tracing::instrument(name = "Verify 2FA", skip_all, err(Debug))]
 pub async fn verify_two_fa(
     State(app_state): State<AppState>,
     jar: CookieJar,

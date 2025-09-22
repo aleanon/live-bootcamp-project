@@ -5,6 +5,7 @@ use crate::{
     requests::verify_token::VerifyTokenRequest, utils::auth,
 };
 
+#[tracing::instrument(name = "Verify Token", skip_all, err(Debug))]
 pub async fn verify_token(
     State(app_state): State<AppState>,
     Json(token_request): Json<VerifyTokenRequest>,

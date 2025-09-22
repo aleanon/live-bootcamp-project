@@ -17,6 +17,7 @@ use crate::{
     utils::auth::generate_auth_cookie,
 };
 
+#[tracing::instrument(name = "Login", skip_all, err(Debug))]
 pub async fn login(
     State(app_state): State<AppState>,
     jar: CookieJar,

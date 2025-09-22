@@ -11,7 +11,6 @@ use crate::utils::auth::TokenAuthError;
 
 use super::{
     data_stores::{BannedTokenStoreError, TwoFaCodeStoreError, UserStoreError},
-    email_client::EmailClientError,
     two_fa_error::TwoFaError,
     user::UserError,
 };
@@ -38,7 +37,7 @@ pub enum AuthApiError {
     #[error("Invalid two-factor authentication code")]
     InvalidTwoFaCode,
     #[error("Unexpected error")]
-    UnexpectedError(#[source] Report),
+    UnexpectedError(#[from] Report),
 }
 
 impl IntoResponse for AuthApiError {
@@ -114,14 +113,6 @@ impl From<TwoFaCodeStoreError> for AuthApiError {
             TwoFaCodeStoreError::InvalidAttemptId | TwoFaCodeStoreError::Invalid2FACode => {
                 AuthApiError::AuthenticationError(Box::new(error))
             }
-        }
-    }
-}
-
-impl From<EmailClientError> for AuthApiError {
-    fn from(error: EmailClientError) -> Self {
-        match error {
-            EmailClientError::UnexpectedError(e) => AuthApiError::UnexpectedError(e),
         }
     }
 }

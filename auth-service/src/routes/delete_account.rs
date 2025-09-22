@@ -7,6 +7,7 @@ use crate::{
     utils::{auth, constants::JWT_ELEVATED_COOKIE_NAME},
 };
 
+#[tracing::instrument(name = "Delete Account", skip_all, err(Debug))]
 pub async fn delete_account(
     State(app_state): State<AppState>,
     jar: CookieJar,

@@ -8,6 +8,7 @@ use crate::{
     utils::{auth, constants::JWT_COOKIE_NAME},
 };
 
+#[tracing::instrument(name = "Elevate auth", skip_all, err(Debug))]
 pub async fn elevate(
     State(app_state): State<AppState>,
     jar: CookieJar,
