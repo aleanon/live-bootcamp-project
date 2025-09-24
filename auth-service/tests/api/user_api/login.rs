@@ -6,9 +6,13 @@ use auth_service::{
         two_fa_attempt_id::TwoFaAttemptId,
         user::UserError,
     },
-    responses::login::TwoFactorAuthResponse,
+    routes::TwoFactorAuthResponse,
 };
 use secrecy::Secret;
+use wiremock::{
+    Mock, ResponseTemplate,
+    matchers::{method, path},
+};
 
 use crate::helpers::{TestApp, get_standard_test_user};
 
@@ -38,17 +42,15 @@ async fn login_returns_200() {
 async fn should_return_206_when_2fa_enabled() {
     let app = TestApp::new().await;
 
-    assert!(
-        app.post_signup(&get_standard_test_user(true))
-            .await
-            .status()
-            .is_success()
-    );
+    let body = get_standard_test_user(true);
+    assert!(app.post_signup(&body).await.status().is_success());
 
-    let body = serde_json::json!({
-        "email": "test@example.com",
-        "password": "password"
-    });
+    Mock::given(path("/email"))
+        .and(method("POST"))
+        .respond_with(ResponseTemplate::new(200))
+        .expect(1)
+        .mount(&app.email_server)
+        .await;
 
     let response = app.login(&body).await;
 
@@ -64,12 +66,59 @@ async fn should_return_206_when_2fa_enabled() {
     let login_id = TwoFaAttemptId::parse(&response.attempt_id).expect("Invalid code");
 
     let two_fa_code_store = app.two_fa_code_store.read().await;
-    let email = Email::try_from(Secret::new("test@example.com".to_string())).unwrap();
+    let email = Email::try_from(Secret::new(body["email"].as_str().unwrap().to_owned())).unwrap();
     let (login_attempt_id, _) = two_fa_code_store
         .get_login_attempt_id_and_two_fa_code(&email)
         .await
         .unwrap();
     assert_eq!(login_attempt_id, login_id)
+}
+
+#[tokio::test]
+async fn should_return_200_if_valid_credentials_and_2fa_enabled() {
+    let app = TestApp::new().await;
+
+    let body = get_standard_test_user(true);
+    assert_eq!(app.post_signup(&body).await.status().as_u16(), 201);
+
+    Mock::given(path("/email"))
+        .and(method("POST"))
+        .respond_with(ResponseTemplate::new(200))
+        .expect(1)
+        .mount(&app.email_server)
+        .await;
+
+    let response = app.login(&body).await;
+    assert_eq!(response.status().as_u16(), 206);
+    let response = response
+        .json::<TwoFactorAuthResponse>()
+        .await
+        .expect("Failed to parse response");
+
+    let login_attempt_id = TwoFaAttemptId::parse(&response.attempt_id).expect("Invalid code");
+
+    let email_body = app
+        .email_server
+        .received_requests()
+        .await
+        .expect("Request recording disabled")
+        .get(0)
+        .expect("No email received")
+        .body
+        .clone();
+
+    let email_json: serde_json::Value =
+        serde_json::from_slice(&email_body).expect("Failed to parse email JSON");
+    let code = email_json["TextBody"].as_str().expect("Missing content");
+
+    let body = serde_json::json!({
+        "email": body["email"].as_str().expect("Email was not a string"),
+        "2FACode": code,
+        "loginAttemptId": login_attempt_id.to_string(),
+    });
+    let response = app.verify_2fa(&body).await;
+
+    assert_eq!(response.status().as_u16(), 200);
 }
 
 #[tokio::test]

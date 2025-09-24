@@ -38,7 +38,11 @@ pub fn extract_token<'a>(jar: &'a CookieJar, cookie_name: &str) -> Result<&'a st
 
 // Create cookie with a new JWT auth token
 pub fn generate_auth_cookie(email: &Email) -> Result<Cookie<'static>, TokenAuthError> {
-    let token = generate_auth_token(email, TOKEN_TTL_SECONDS, JWT_SECRET.as_bytes())?;
+    let token = generate_auth_token(
+        email,
+        TOKEN_TTL_SECONDS,
+        JWT_SECRET.expose_secret().as_bytes(),
+    )?;
     Ok(create_auth_cookie(token, JWT_COOKIE_NAME))
 }
 
@@ -46,7 +50,7 @@ pub fn generate_elevated_auth_cookie(email: &Email) -> Result<Cookie<'static>, T
     let token = generate_auth_token(
         email,
         ELEVATED_TOKEN_TTL_SECONDS,
-        JWT_ELEVATED_SECRET.as_bytes(),
+        JWT_ELEVATED_SECRET.expose_secret().as_bytes(),
     )?;
     Ok(create_auth_cookie(token, JWT_ELEVATED_COOKIE_NAME))
 }
@@ -106,14 +110,24 @@ pub async fn validate_auth_token(
     token: &str,
     banned_token_store: &dyn BannedTokenStore,
 ) -> Result<Claims, TokenAuthError> {
-    validate_token(token, banned_token_store, JWT_SECRET.as_bytes()).await
+    validate_token(
+        token,
+        banned_token_store,
+        JWT_SECRET.expose_secret().as_bytes(),
+    )
+    .await
 }
 
 pub async fn validate_elevated_auth_token(
     token: &str,
     banned_token_store: &dyn BannedTokenStore,
 ) -> Result<Claims, TokenAuthError> {
-    validate_token(token, banned_token_store, JWT_ELEVATED_SECRET.as_bytes()).await
+    validate_token(
+        token,
+        banned_token_store,
+        JWT_ELEVATED_SECRET.expose_secret().as_bytes(),
+    )
+    .await
 }
 
 async fn validate_token(
@@ -204,7 +218,12 @@ mod tests {
     #[tokio::test]
     async fn test_generate_auth_token() {
         let email = Email::try_from(Secret::from("test@example.com".to_owned())).unwrap();
-        let result = generate_auth_token(&email, TOKEN_TTL_SECONDS, JWT_SECRET.as_bytes()).unwrap();
+        let result = generate_auth_token(
+            &email,
+            TOKEN_TTL_SECONDS,
+            JWT_SECRET.expose_secret().as_bytes(),
+        )
+        .unwrap();
         assert_eq!(result.split('.').count(), 3);
     }
 
@@ -212,7 +231,12 @@ mod tests {
     async fn test_validate_token_with_valid_token() {
         let email = Email::try_from(Secret::from("test@example.com".to_owned())).unwrap();
         let banned_token_store = HashSetBannedTokenStore::default();
-        let token = generate_auth_token(&email, TOKEN_TTL_SECONDS, JWT_SECRET.as_bytes()).unwrap();
+        let token = generate_auth_token(
+            &email,
+            TOKEN_TTL_SECONDS,
+            JWT_SECRET.expose_secret().as_bytes(),
+        )
+        .unwrap();
         let result = validate_auth_token(&token, &banned_token_store)
             .await
             .unwrap();
@@ -238,7 +262,12 @@ mod tests {
     async fn test_ban_token() {
         let email = Email::try_from(Secret::from("test@example.com".to_owned())).unwrap();
         let mut banned_token_store = HashSetBannedTokenStore::default();
-        let token = generate_auth_token(&email, TOKEN_TTL_SECONDS, JWT_SECRET.as_bytes()).unwrap();
+        let token = generate_auth_token(
+            &email,
+            TOKEN_TTL_SECONDS,
+            JWT_SECRET.expose_secret().as_bytes(),
+        )
+        .unwrap();
 
         banned_token_store.ban_token(token.clone()).await.unwrap();
         let result = validate_auth_token(&token, &banned_token_store).await;

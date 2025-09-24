@@ -1,22 +1,42 @@
 use axum::{Json, extract::State, http::StatusCode, response::IntoResponse};
 use axum_extra::extract::CookieJar;
+use secrecy::Secret;
+use serde::Deserialize;
 
 use crate::{
     app_state::AppState,
     domain::{
-        auth_api_error::AuthApiError, data_stores::TwoFaCodeStore, email::Email,
-        two_fa_attempt_id::TwoFaAttemptId, two_fa_code::TwoFaCode,
+        auth_api_error::AuthApiError,
+        data_stores::{BannedTokenStore, TwoFaCodeStore, UserStore},
+        email::Email,
+        email_client::EmailClient,
+        two_fa_attempt_id::TwoFaAttemptId,
+        two_fa_code::TwoFaCode,
     },
-    requests::verify_2fa::Verify2FARequest,
     utils::auth,
 };
 
+#[derive(Debug, Deserialize)]
+pub struct Verify2FARequest {
+    pub email: Secret<String>,
+    #[serde(rename = "loginAttemptId")]
+    pub login_attempt_id: String,
+    #[serde(rename = "2FACode")]
+    pub two_factor_code: String,
+}
+
 #[tracing::instrument(name = "Verify 2FA", skip_all, err(Debug))]
-pub async fn verify_two_fa(
-    State(app_state): State<AppState>,
+pub async fn verify_two_fa<U, B, T, E>(
+    State(app_state): State<AppState<U, B, T, E>>,
     jar: CookieJar,
     Json(request): Json<Verify2FARequest>,
-) -> Result<impl IntoResponse, AuthApiError> {
+) -> Result<impl IntoResponse, AuthApiError>
+where
+    U: UserStore,
+    B: BannedTokenStore,
+    T: TwoFaCodeStore,
+    E: EmailClient,
+{
     let email = Email::try_from(request.email)?;
     let login_attempt_id = TwoFaAttemptId::parse(&request.login_attempt_id)?;
     let two_fa_code = TwoFaCode::parse(request.two_factor_code.clone())?;

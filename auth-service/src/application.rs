@@ -7,6 +7,7 @@ use axum::{
     serve::Serve,
 };
 use redis::{Client, RedisResult};
+use secrecy::ExposeSecret;
 use sqlx::{PgPool, postgres::PgPoolOptions};
 use std::error::Error;
 use tower_http::trace::TraceLayer;
@@ -15,6 +16,8 @@ use tower_http::{
     services::ServeDir,
 };
 
+use crate::domain::data_stores::{BannedTokenStore, TwoFaCodeStore, UserStore};
+use crate::domain::email_client::EmailClient;
 use crate::utils;
 use crate::utils::constants::{DATABASE_URL, REDIS_HOST_NAME};
 use crate::utils::tracing::{make_span_with_request_id, on_request, on_response};
@@ -25,7 +28,16 @@ pub struct Application {
 }
 
 impl Application {
-    pub async fn build(app_state: AppState, address: &str) -> Result<Self, Box<dyn Error>> {
+    pub async fn build<U, B, T, E>(
+        app_state: AppState<U, B, T, E>,
+        address: &str,
+    ) -> Result<Self, Box<dyn Error>>
+    where
+        U: UserStore + 'static,
+        B: BannedTokenStore + 'static,
+        T: TwoFaCodeStore + 'static,
+        E: EmailClient + 'static,
+    {
         let config = app_state.config.clone();
         let allowed_origins = config.read().await.allowed_origins.clone();
         utils::config::listen_for_config_updates(config);
@@ -72,7 +84,7 @@ impl Application {
 
 pub async fn configure_postgresql() -> PgPool {
     // Create a new database connection pool
-    let pg_pool = get_postgres_pool(&DATABASE_URL)
+    let pg_pool = get_postgres_pool(&DATABASE_URL.expose_secret())
         .await
         .expect("Failed to create Postgres connection pool!");
 

@@ -1,28 +1,82 @@
 use axum::{Json, extract::State, http::StatusCode, response::IntoResponse};
 use axum_extra::extract::CookieJar;
+use secrecy::Secret;
+use serde::{Deserialize, Serialize};
 
 use crate::{
     app_state::AppState,
     domain::{
         auth_api_error::AuthApiError,
-        data_stores::{TwoFaCodeStore, UserStore},
+        data_stores::{BannedTokenStore, TwoFaCodeStore, UserStore},
         email::Email,
         email_client::EmailClient,
+        password::Password,
         two_fa_attempt_id::TwoFaAttemptId,
         two_fa_code::TwoFaCode,
-        user::ValidatedUser,
+        user::{UserError, ValidatedUser},
     },
-    requests::login::{LoginRequest, ValidLoginRequest},
-    responses::login::{LoginResponse, TwoFactorAuthResponse},
     utils::auth::generate_auth_cookie,
 };
 
+#[derive(Debug, Deserialize)]
+pub struct LoginRequest {
+    pub email: Secret<String>,
+    pub password: Secret<String>,
+}
+
+#[derive(Debug)]
+pub struct ValidLoginRequest {
+    email: Email,
+    password: Password,
+}
+
+impl ValidLoginRequest {
+    pub fn parse(login_request: LoginRequest) -> Result<Self, UserError> {
+        Ok(Self {
+            email: Email::try_from(login_request.email)?,
+            password: Password::try_from(login_request.password)?,
+        })
+    }
+
+    pub fn email(&self) -> &Email {
+        &self.email
+    }
+
+    pub fn password(&self) -> &Password {
+        &self.password
+    }
+
+    // pub fn password_matches(&self, password: &Password) -> bool {
+    //     &self.password == password
+    // }
+}
+
+#[derive(Debug, Serialize)]
+#[serde(untagged)]
+pub enum LoginResponse {
+    RegularAuth,
+    TwoFactorAuth(TwoFactorAuthResponse),
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TwoFactorAuthResponse {
+    pub message: String,
+    #[serde(rename = "loginAttemptId")]
+    pub attempt_id: String,
+}
+
 #[tracing::instrument(name = "Login", skip_all, err(Debug))]
-pub async fn login(
-    State(app_state): State<AppState>,
+pub async fn login<U, B, T, E>(
+    State(app_state): State<AppState<U, B, T, E>>,
     jar: CookieJar,
     Json(login_request): Json<LoginRequest>,
-) -> Result<impl IntoResponse, AuthApiError> {
+) -> Result<impl IntoResponse, AuthApiError>
+where
+    U: UserStore,
+    B: BannedTokenStore,
+    T: TwoFaCodeStore,
+    E: EmailClient,
+{
     let login_request = ValidLoginRequest::parse(login_request)?;
 
     let validated_user = app_state
@@ -38,11 +92,17 @@ pub async fn login(
     }
 }
 
-async fn handle_2fa(
+async fn handle_2fa<U, B, T, E>(
     email: Email,
-    app_state: AppState,
+    app_state: AppState<U, B, T, E>,
     jar: CookieJar,
-) -> Result<(CookieJar, (StatusCode, Json<LoginResponse>)), AuthApiError> {
+) -> Result<(CookieJar, (StatusCode, Json<LoginResponse>)), AuthApiError>
+where
+    U: UserStore,
+    B: BannedTokenStore,
+    T: TwoFaCodeStore,
+    E: EmailClient,
+{
     let login_attempt_id = TwoFaAttemptId::new();
     let code = TwoFaCode::new();
 
@@ -55,8 +115,6 @@ async fn handle_2fa(
 
     app_state
         .email_client
-        .read()
-        .await
         .send_email(&email, "2FA Code", code.as_str())
         .await?;
 

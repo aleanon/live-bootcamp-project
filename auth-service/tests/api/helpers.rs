@@ -2,22 +2,22 @@ use std::sync::Arc;
 
 use auth_service::{
     Application,
-    app_state::actual,
+    app_state::AppState,
     application::get_postgres_pool,
     domain::{
         data_stores::{BannedTokenStore, TwoFaCodeStore},
         email::Email,
+        two_fa_attempt_id::TwoFaAttemptId,
     },
-    requests::verify_2fa::Verify2FARequest,
-    services::data_stores::{
-        PostgresUserStore, RedisBannedTokenStore, RedisTwoFaCodeStore,
-        hashmap_two_fa_code_store::HashMapTwoFaCodeStore, mock_email_client::MockEmailClient,
+    services::{
+        data_stores::{PostgresUserStore, RedisBannedTokenStore, RedisTwoFaCodeStore},
+        postmark_email_client::PostmarkEmailClient,
     },
     utils::constants::{JWT_COOKIE_NAME, JWT_ELEVATED_COOKIE_NAME, test},
 };
 
 use reqwest::{
-    Url,
+    Client, Url,
     cookie::{CookieStore, Jar},
 };
 use secrecy::Secret;
@@ -31,13 +31,7 @@ use testcontainers_modules::{
 };
 use tokio::sync::{Mutex, RwLock};
 use uuid::Uuid;
-
-type AppState<
-    UserStore = PostgresUserStore,
-    BannedTokenStore = RedisBannedTokenStore,
-    TwoFaCodeStore = HashMapTwoFaCodeStore,
-    EmailClient = MockEmailClient,
-> = actual::AppState<UserStore, BannedTokenStore, TwoFaCodeStore, EmailClient>;
+use wiremock::MockServer;
 
 pub struct TestApp {
     pub address: String,
@@ -45,6 +39,7 @@ pub struct TestApp {
     pub http_client: reqwest::Client,
     pub two_fa_code_store: Arc<RwLock<dyn TwoFaCodeStore>>,
     pub banned_token_store: Arc<RwLock<dyn BannedTokenStore>>,
+    pub email_server: MockServer,
     #[allow(unused)]
     user_store_container: ContainerAsync<postgres::Postgres>,
     #[allow(unused)]
@@ -65,7 +60,9 @@ impl TestApp {
             redis_connection.clone(),
         )));
         let two_fa_code_store = Arc::new(RwLock::new(RedisTwoFaCodeStore::new(redis_connection)));
-        let email_client = Arc::new(RwLock::new(MockEmailClient::default()));
+        let email_server = MockServer::start().await;
+        let base_url = email_server.uri();
+        let email_client = Arc::new(configure_postmark_email_client(base_url));
 
         let (user_store_container, pool) = setup_and_connect_user_store_container().await;
 
@@ -98,29 +95,30 @@ impl TestApp {
             http_client,
             two_fa_code_store,
             banned_token_store,
+            email_server,
             user_store_container,
             redis_container,
         }
     }
 
-    pub async fn get_verify_two_fa_request(&self, body: &Value) -> Verify2FARequest {
-        let email = Email::try_from(Secret::new(body["email"].as_str().unwrap().to_string()))
-            .expect("Failed to parse Email address");
+    // pub async fn get_verify_two_fa_request(&self, body: &Value) -> Verify2FARequest {
+    //     let email = Email::try_from(Secret::new(body["email"].as_str().unwrap().to_string()))
+    //         .expect("Failed to parse Email address");
 
-        let (login_attempt_id, code) = self
-            .two_fa_code_store
-            .read()
-            .await
-            .get_login_attempt_id_and_two_fa_code(&email)
-            .await
-            .expect("Failed to get login attempt id and two fa code");
+    //     let (login_attempt_id, code) = self
+    //         .two_fa_code_store
+    //         .read()
+    //         .await
+    //         .get_login_attempt_id_and_two_fa_code(&email)
+    //         .await
+    //         .expect("Failed to get login attempt id and two fa code");
 
-        Verify2FARequest {
-            email: email.as_ref().to_owned(),
-            login_attempt_id: login_attempt_id.to_string(),
-            two_factor_code: code.to_string(),
-        }
-    }
+    //     Verify2FARequest {
+    //         email: email.as_ref().to_owned(),
+    //         login_attempt_id: login_attempt_id.to_string(),
+    //         two_factor_code: code.to_string(),
+    //     }
+    // }
 
     pub fn add_invalid_cookie(&self) {
         self.cookie_jar.add_cookie_str(
@@ -227,6 +225,32 @@ impl TestApp {
             .await
             .expect("Failed to execute request")
     }
+
+    pub async fn get_verify_two_fa_request(
+        &self,
+        email: &str,
+        two_fa_attempt_id: TwoFaAttemptId,
+    ) -> Value {
+        let email_body = &self
+            .email_server
+            .received_requests()
+            .await
+            .expect("Request recording disabled")
+            .get(0)
+            .expect("No email received")
+            .body
+            .clone();
+
+        let email_json: serde_json::Value =
+            serde_json::from_slice(email_body).expect("Failed to parse email JSON");
+        let code = email_json["TextBody"].as_str().expect("Missing content");
+
+        serde_json::json!({
+            "email": email,
+            "2FACode": code,
+            "loginAttemptId": two_fa_attempt_id.to_string(),
+        })
+    }
 }
 
 pub fn get_random_email() -> String {
@@ -239,6 +263,19 @@ pub fn get_standard_test_user(two_fa: bool) -> Value {
         "password": "password",
         "requires2FA": two_fa
     })
+}
+
+fn configure_postmark_email_client(base_url: String) -> PostmarkEmailClient {
+    let postmark_auth_token = Secret::new("auth_token".to_owned());
+
+    let sender = Email::try_from(Secret::new(test::email_client::SENDER.to_owned())).unwrap();
+
+    let http_client = Client::builder()
+        .timeout(test::email_client::TIMEOUT)
+        .build()
+        .expect("Failed to build HTTP client");
+
+    PostmarkEmailClient::new(base_url, sender, postmark_auth_token, http_client)
 }
 
 // static POSTGRES_CONTAINER: OnceCell<RwLock<ContainerAsync<postgres::Postgres>>> =

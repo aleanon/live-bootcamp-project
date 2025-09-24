@@ -1,8 +1,6 @@
 pub mod app_state;
 pub mod application;
 pub mod domain;
-pub mod requests;
-pub mod responses;
 pub mod routes;
 pub mod services;
 pub mod settings;
