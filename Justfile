@@ -16,11 +16,12 @@ compose-build:
     docker compose -f compose.dev.yml build
 
 
-run name:
-    cargo run -p {{name}}-service
+run:
+    REDIS_HOST_NAME=127.0.0.1 cd auth-service/ && cargo run
+    cd app-service/ && cargo run
 
 log name:
-    docker logs live-bootcamp-project-{{name}}-1
+    docker logs project-{{name}}-1
 
 test args="":
     cargo nextest run {{args}}
