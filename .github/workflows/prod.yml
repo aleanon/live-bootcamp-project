@@ -111,7 +111,7 @@ jobs:
         run: sudo apt-get install sshpass
 
       - name: Copy compose.yml files to droplet
-        run: sshpass -v -p '${{ secrets.DROPLET_PASSWORD }}' scp -o StrictHostKeyChecking=no compose.yml root@${{ vars.DROPLET_IP }}:~/app/
+        run: sshpass -v -p '${{ secrets.DROPLET_PASSWORD }}' scp -o StrictHostKeyChecking=no compose.yml root@${{ vars.DROPLET_IP }}:~/app/compose.yml.new
 
       - name: Copy Caddyfile to droplet
         run: sshpass -v -p '${{ secrets.DROPLET_PASSWORD }}' scp -o StrictHostKeyChecking=no reverse-proxy/.config/Caddyfile root@${{ vars.DROPLET_IP }}:~/app/
@@ -135,5 +135,7 @@ jobs:
             echo "POSTMARK_AUTH_TOKEN=${{ secrets.POSTMARK_AUTH_TOKEN }}" >> .env
             snap install docker
             docker compose down
+            mv compose.yml compose.yml.old
+            mv compose.yml.new compose.yml
             docker compose pull
             docker compose up -d
