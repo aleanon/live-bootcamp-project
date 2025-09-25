@@ -2,9 +2,9 @@ default:
     @just --list
 
 compose:
-    docker compose -f compose.dev.yml build
-    docker compose -f compose.dev.yml down
-    docker compose -f compose.dev.yml up -d
+    docker compose build
+    docker compose down
+    docker compose up -d
 
 compose-up:
     docker compose -f compose.dev.yml up -d

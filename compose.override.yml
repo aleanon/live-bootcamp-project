@@ -1,10 +1,18 @@
 services:
   app-service:
     build:
-      context: . # specify directory where local Dockerfile is located
-      dockerfile: ./app-service/Dockerfile
+      context: ./app-service/
+      dockerfile: ./Dockerfile
 
   auth-service:
     build:
-      context: . # specify directory where local Dockerfile is located
-      dockerfile: ./auth-service/Dockerfile
+      context: ./auth-service/
+      dockerfile: ./Dockerfile
+
+  reverse-proxy:
+    volumes: !override
+      - ./reverse-proxy/.config/Caddyfile.dev:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    ports: !override
+      - "8080:8080"

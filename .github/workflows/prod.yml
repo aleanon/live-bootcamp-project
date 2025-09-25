@@ -1,4 +1,6 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-action.json
 name: Build, Test and Deploy to Prod
+runs:
 
 # Trigger the workflow when changes are pushed to the main branch
 on:
@@ -70,6 +72,7 @@ jobs:
           cargo test --verbose
         env:
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          JWT_ELEVATED_SECRET: ${{ secrets.JWT_ELEVATED_SECRET }}
 
         # Set up Docker Buildx for multi-platform builds
       - name: Set up Docker Buildx
@@ -86,7 +89,8 @@ jobs:
         with:
           push: true
           files: |
-            compose.dev.yml
+            compose.yml
+            compose.override.yml
           set: |
             *.cache-from=type=gha
             *.cache-to=type=gha,mode=max
@@ -111,12 +115,9 @@ jobs:
       - name: Copy compose.yml files to droplet
         run: |
           sshpass -v -p '${{ secrets.DROPLET_PASSWORD }}' scp -o StrictHostKeyChecking=no compose.yml root@${{ vars.DROPLET_IP }}:~/app/
-          sshpass -v -p '${{ secrets.DROPLET_PASSWORD }}' scp -o StrictHostKeyChecking=no app-service/compose.yml root@${{ vars.DROPLET_IP }}:~/app/app-service
-          sshpass -v -p '${{ secrets.DROPLET_PASSWORD }}' scp -o StrictHostKeyChecking=no auth-service/compose.yml root@${{ vars.DROPLET_IP }}:~/app/auth-service
-          sshpass -v -p '${{ secrets.DROPLET_PASSWORD }}' scp -o StrictHostKeyChecking=no reverse-proxy/compose.yml root@${{ vars.DROPLET_IP }}:~/app/reverse-proxy
 
       - name: Copy Caddyfile to droplet
-        run: sshpass -v -p '${{ secrets.DROPLET_PASSWORD }}' scp -o StrictHostKeyChecking=no Caddyfile root@${{ vars.DROPLET_IP }}:~/app/
+        run: sshpass -v -p '${{ secrets.DROPLET_PASSWORD }}' scp -o StrictHostKeyChecking=no reverse-proxy/.config/Caddyfile root@${{ vars.DROPLET_IP }}:~/app/
 
       - name: Deploy
         uses: appleboy/ssh-action@master
