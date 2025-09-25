@@ -3,6 +3,7 @@ use std::{ops::Deref, sync::Arc};
 use axum::http::HeaderValue;
 use dashmap::DashSet;
 use dotenvy::dotenv;
+use secrecy::Secret;
 use serde::{Deserialize, Serialize};
 use tokio::sync::{RwLock, RwLockReadGuard};
 
@@ -10,7 +11,12 @@ use crate::utils::constants::AUTH_SERVICE_ALLOWED_ORIGINS;
 
 #[derive(Debug, Deserialize)]
 pub struct Postgres {
-    database: Secret<String>,
+    username: Secret<String>,
+    password: Secret<String>,
+}
+
+pub struct Redis {
+    host_name: String,
 }
 
 pub(crate) struct Settings {}
