@@ -1,4 +1,4 @@
-use std::sync::{Arc, LazyLock};
+use std::sync::Arc;
 
 use auth_service::{
     Application,
@@ -13,14 +13,8 @@ use auth_service::{
         data_stores::{PostgresUserStore, RedisBannedTokenStore, RedisTwoFaCodeStore},
         postmark_email_client::PostmarkEmailClient,
     },
-    settings::Settings,
-    utils::constants::test,
+    utils::constants::{JWT_COOKIE_NAME, JWT_ELEVATED_COOKIE_NAME, test},
 };
-static JWT_COOKIE_NAME: LazyLock<String> =
-    LazyLock::new(|| Settings::load().auth.jwt.cookie_name.clone());
-#[allow(unused)]
-static JWT_ELEVATED_COOKIE_NAME: LazyLock<String> =
-    LazyLock::new(|| Settings::load().auth.elevated_jwt.cookie_name.clone());
 
 use reqwest::{
     Client, Url,
@@ -146,14 +140,14 @@ impl TestApp {
         Some(token.to_owned())
     }
 
-    pub fn _get_elevated_jwt_token(&self) -> Option<String> {
+    pub fn get_jwt_elevated_token(&self) -> Option<String> {
         self.cookie_jar
             .cookies(&Url::parse(&self.address).unwrap())?
             .to_str()
             .expect("Unable to make cookie into &str")
             .split(';')
             .map(|c| c.trim())
-            .find(|c| c.starts_with(JWT_ELEVATED_COOKIE_NAME.as_str()))
+            .find(|c| c.starts_with(*JWT_ELEVATED_COOKIE_NAME))
             .and_then(|c| {
                 c.split_once('=')
                     .and_then(|(_, token)| Some(token.to_owned()))
@@ -209,6 +203,15 @@ impl TestApp {
     pub async fn verify_token<Body: Serialize>(&self, token: &Body) -> reqwest::Response {
         self.http_client
             .post(&format!("{}/verify-token", &self.address))
+            .json(token)
+            .send()
+            .await
+            .expect("Failed to execute request")
+    }
+
+    pub async fn verify_elevated_token<Body: Serialize>(&self, token: &Body) -> reqwest::Response {
+        self.http_client
+            .post(&format!("{}/verify-elevated-token", &self.address))
             .json(token)
             .send()
             .await

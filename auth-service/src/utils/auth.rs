@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use axum_extra::extract::{
     CookieJar,
     cookie::{Cookie, SameSite},
@@ -11,7 +13,8 @@ use thiserror::Error;
 
 use crate::{
     domain::{data_stores::BannedTokenStore, email::Email},
-    settings::Settings,
+    settings::{Config, Settings},
+    utils::constants::{JWT_COOKIE_NAME, JWT_ELEVATED_COOKIE_NAME},
 };
 
 #[derive(Debug, Error)]
@@ -36,34 +39,36 @@ pub fn extract_token<'a>(jar: &'a CookieJar, cookie_name: &str) -> Result<&'a st
 }
 
 // Create cookie with a new JWT auth token
-pub fn generate_auth_cookie(email: &Email) -> Result<Cookie<'static>, TokenAuthError> {
-    let config = Settings::get_config();
+pub fn generate_auth_cookie(
+    email: &Email,
+    config: &Arc<Config>,
+) -> Result<Cookie<'static>, TokenAuthError> {
     let token_ttl = config.auth.jwt.time_to_live;
     let jwt_secret = config.auth.jwt.secret.expose_secret().as_bytes();
-    let jwt_cookie_name = config.auth.jwt.cookie_name.clone();
 
     let token = generate_auth_token(email, token_ttl, jwt_secret)?;
-    Ok(create_auth_cookie(token, jwt_cookie_name))
+    Ok(create_auth_cookie(token, *JWT_COOKIE_NAME))
 }
 
-pub fn generate_elevated_auth_cookie(email: &Email) -> Result<Cookie<'static>, TokenAuthError> {
-    let config = Settings::get_config();
+pub fn generate_elevated_auth_cookie(
+    email: &Email,
+    config: &Arc<Config>,
+) -> Result<Cookie<'static>, TokenAuthError> {
     let token_ttl = config.auth.elevated_jwt.time_to_live;
     let jwt_secret = config.auth.elevated_jwt.secret.expose_secret().as_bytes();
-    let jwt_cookie_name = config.auth.elevated_jwt.cookie_name.clone();
 
     let token = generate_auth_token(email, token_ttl, jwt_secret)?;
-    Ok(create_auth_cookie(token, jwt_cookie_name))
+    Ok(create_auth_cookie(token, *JWT_ELEVATED_COOKIE_NAME))
 }
 
-pub fn create_removal_cookie(cookie_name: String) -> Cookie<'static> {
+pub fn create_removal_cookie(cookie_name: &str) -> Cookie<'_> {
     let mut cookie = create_auth_cookie(String::new(), cookie_name);
     cookie.make_removal();
     cookie
 }
 
 // Create cookie and set the value to the passed-in token string
-pub fn create_auth_cookie(token: String, cookie_name: String) -> Cookie<'static> {
+pub fn create_auth_cookie(token: String, cookie_name: &str) -> Cookie<'_> {
     Cookie::build((cookie_name, token))
         .path("/") // apply cookie to all URLs on the server
         .http_only(true) // prevent JavaScript from accessing the cookie
@@ -188,7 +193,7 @@ mod tests {
     async fn test_generate_auth_cookie() {
         let config = Settings::load();
         let email = Email::try_from(Secret::from("test@example.com".to_owned())).unwrap();
-        let cookie = generate_auth_cookie(&email).unwrap();
+        let cookie = generate_auth_cookie(&email, &config).unwrap();
         assert_eq!(cookie.name(), config.auth.jwt.cookie_name);
         assert_eq!(cookie.value().split('.').count(), 3);
         assert_eq!(cookie.path(), Some("/"));
@@ -201,7 +206,7 @@ mod tests {
         let config = Settings::load();
         let jwt_cookie_name = config.auth.jwt.cookie_name.clone();
         let token = "test_token".to_owned();
-        let cookie = create_auth_cookie(token.clone(), jwt_cookie_name.clone());
+        let cookie = create_auth_cookie(token.clone(), &jwt_cookie_name);
         assert_eq!(cookie.name(), jwt_cookie_name);
         assert_eq!(cookie.value(), token);
         assert_eq!(cookie.path(), Some("/"));

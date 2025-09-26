@@ -51,6 +51,10 @@
 //     Secret::new(token)
 // }
 
+use std::sync::LazyLock;
+
+use crate::settings::Settings;
+
 pub mod env {
     pub const JWT_SECRET_ENV_VAR: &str = "JWT_SECRET";
     pub const JWT_ELEVATED_SECRET_ENV_VAR: &str = "JWT_ELEVATED_SECRET";
@@ -60,8 +64,14 @@ pub mod env {
     pub const POSTMARK_AUTH_TOKEN_ENV_VAR: &str = "POSTMARK_AUTH_TOKEN";
 }
 
-// pub const JWT_COOKIE_NAME: &str = "jwt";
-// pub const JWT_ELEVATED_COOKIE_NAME: &str = "jwt_elevated";
+pub const JWT_COOKIE_NAME: LazyLock<&'static str> = LazyLock::new(|| {
+    let cookie_name = Settings::load().auth.jwt.cookie_name.clone();
+    Box::leak(cookie_name.into_boxed_str())
+});
+pub static JWT_ELEVATED_COOKIE_NAME: LazyLock<&'static str> = LazyLock::new(|| {
+    let cookie_name = Settings::load().auth.elevated_jwt.cookie_name.clone();
+    Box::leak(cookie_name.into_boxed_str())
+});
 // pub const DEFAULT_REDIS_HOSTNAME: &str = "127.0.0.1";
 
 pub mod prod {

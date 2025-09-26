@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use axum::{Json, extract::State, http::StatusCode, response::IntoResponse};
 use axum_extra::extract::CookieJar;
 use secrecy::Secret;
@@ -15,6 +17,7 @@ use crate::{
         two_fa_code::TwoFaCode,
         user::{UserError, ValidatedUser},
     },
+    settings::{Config, Settings},
     utils::auth::generate_auth_cookie,
 };
 
@@ -77,6 +80,8 @@ where
     T: TwoFaCodeStore,
     E: EmailClient,
 {
+    let config = Settings::load();
+
     let login_request = ValidLoginRequest::parse(login_request)?;
 
     let validated_user = app_state
@@ -88,7 +93,7 @@ where
 
     match validated_user {
         ValidatedUser::Requires2Fa(email) => handle_2fa(email, app_state, jar).await,
-        ValidatedUser::No2Fa(email) => handle_no_2fa(&email, jar).await,
+        ValidatedUser::No2Fa(email) => handle_no_2fa(&email, jar, &config).await,
     }
 }
 
@@ -135,8 +140,9 @@ where
 async fn handle_no_2fa(
     email: &Email,
     mut jar: CookieJar,
+    config: &Arc<Config>,
 ) -> Result<(CookieJar, (StatusCode, Json<LoginResponse>)), AuthApiError> {
-    let auth_cookie = generate_auth_cookie(email)?;
+    let auth_cookie = generate_auth_cookie(email, config)?;
 
     jar = jar.add(auth_cookie);
 

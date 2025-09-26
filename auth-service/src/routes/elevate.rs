@@ -73,7 +73,7 @@ where
         .authenticate_user(elevate_request.email(), elevate_request.password())
         .await?;
 
-    let elevated_cookie = auth::generate_elevated_auth_cookie(elevate_request.email())?;
+    let elevated_cookie = auth::generate_elevated_auth_cookie(elevate_request.email(), &config)?;
 
     Ok((jar.add(elevated_cookie), StatusCode::OK))
 }

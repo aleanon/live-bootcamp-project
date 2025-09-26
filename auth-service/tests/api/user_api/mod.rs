@@ -1,8 +1,9 @@
-pub mod delete_account;
+mod delete_account;
 mod elevate;
 mod login;
 mod logout;
 mod root;
 mod signup;
 mod verify_2fa;
+mod verify_elevated_token;
 mod verify_token;

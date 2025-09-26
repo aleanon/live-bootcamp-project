@@ -494,3 +494,41 @@ paths:
                 properties:
                   error:
                     type: string
+
+  /verify-elevated-token:
+    post:
+      summary: Verify elevated JWT
+      description: Verifies if an elevated JWT token is valid. Elevated tokens are used for sensitive operations requiring higher privileges.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                token:
+                  type: string
+                  description: Elevated JWT token to verify
+      responses:
+        "200":
+          description: Elevated token is valid
+        "401":
+          description: Elevated JWT is not valid
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+        "422":
+          description: Unprocessable content
+        "500":
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string

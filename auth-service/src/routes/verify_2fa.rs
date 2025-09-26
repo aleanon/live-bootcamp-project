@@ -13,6 +13,7 @@ use crate::{
         two_fa_attempt_id::TwoFaAttemptId,
         two_fa_code::TwoFaCode,
     },
+    settings::Settings,
     utils::auth,
 };
 
@@ -37,6 +38,7 @@ where
     T: TwoFaCodeStore,
     E: EmailClient,
 {
+    let config = Settings::load();
     let email = Email::try_from(request.email)?;
     let login_attempt_id = TwoFaAttemptId::parse(&request.login_attempt_id)?;
     let two_fa_code = TwoFaCode::parse(request.two_factor_code.clone())?;
@@ -62,7 +64,7 @@ where
         .delete(&email)
         .await?;
 
-    let auth_cookie = auth::generate_auth_cookie(&email)?;
+    let auth_cookie = auth::generate_auth_cookie(&email, &config)?;
 
     let update_jar = jar.add(auth_cookie);
 

@@ -9,7 +9,10 @@ use crate::{
         email_client::EmailClient,
     },
     settings::Settings,
-    utils::auth::{self, create_removal_cookie},
+    utils::{
+        auth::{self, create_removal_cookie},
+        constants::{JWT_COOKIE_NAME, JWT_ELEVATED_COOKIE_NAME},
+    },
 };
 
 #[tracing::instrument(name = "Logout", skip_all, err(Debug))]
@@ -37,11 +40,11 @@ where
         banned_token_store
             .ban_token(cookie.value().to_owned())
             .await?;
-        jar = jar.remove(create_removal_cookie(jwt_elevated_cookie_name))
+        jar = jar.remove(create_removal_cookie(*JWT_ELEVATED_COOKIE_NAME))
     }
 
     banned_token_store.ban_token(token).await?;
-    jar = jar.remove(create_removal_cookie(jwt_cookie_name));
+    jar = jar.remove(create_removal_cookie(*JWT_COOKIE_NAME));
 
     Ok((jar, StatusCode::OK))
 }
