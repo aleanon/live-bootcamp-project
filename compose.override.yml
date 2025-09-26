@@ -8,6 +8,8 @@ services:
     build:
       context: ./auth-service/
       dockerfile: ./Dockerfile
+    volumes: !override
+      - ./auth-service/config:/app/config
 
   reverse-proxy:
     volumes: !override

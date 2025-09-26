@@ -116,6 +116,9 @@ jobs:
       - name: Copy Caddyfile to droplet
         run: sshpass -v -p '${{ secrets.DROPLET_PASSWORD }}' scp -o StrictHostKeyChecking=no reverse-proxy/.config/Caddyfile root@${{ vars.DROPLET_IP }}:~/app/
 
+      - name: Copy auth config to droplet
+        run: sshpass -v -p '${{ secrets.DROPLET_PASSWORD }}' scp -r -o StrictHostKeyChecking=no auth-service/config root@${{ vars.DROPLET_IP }}:~/app/auth-config
+
       - name: Deploy
         uses: appleboy/ssh-action@master
         with:

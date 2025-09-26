@@ -6,6 +6,7 @@ use auth_service::services::data_stores::{
     PostgresUserStore, RedisBannedTokenStore, RedisTwoFaCodeStore,
 };
 use auth_service::services::postmark_email_client::configure_postmark_email_client;
+use auth_service::settings::Settings;
 use auth_service::utils::constants::prod;
 use auth_service::utils::tracing::init_tracing;
 use tokio::sync::{Mutex, RwLock};
@@ -14,6 +15,7 @@ use tokio::sync::{Mutex, RwLock};
 async fn main() {
     color_eyre::install().expect("Failed to install color_eyre");
     init_tracing().expect("Failed to initialize tracing");
+    Settings::load();
 
     let pg_pool = configure_postgresql().await;
     let redis_connection = Arc::new(Mutex::new(configure_redis()));

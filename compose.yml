@@ -24,7 +24,7 @@ services:
       - internal
       - backend
     volumes:
-      - "auth-config:/config"
+      - "./auth-config:/app/config"
     depends_on:
       db:
         condition: service_started
@@ -64,8 +64,6 @@ services:
       - backend
 
 volumes:
-  auth-config:
-    name: project_auth_config
   db:
     name: project_db
     driver: local

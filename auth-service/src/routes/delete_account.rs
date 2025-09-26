@@ -9,7 +9,8 @@ use crate::{
         email::Email,
         email_client::EmailClient,
     },
-    utils::{auth, constants::JWT_ELEVATED_COOKIE_NAME},
+    settings::Settings,
+    utils::auth,
 };
 
 #[tracing::instrument(name = "Delete Account", skip_all, err(Debug))]
@@ -23,7 +24,9 @@ where
     T: TwoFaCodeStore,
     E: EmailClient,
 {
-    let elevated_token = auth::extract_token(&jar, JWT_ELEVATED_COOKIE_NAME)?;
+    let config = Settings::load();
+    let jwt_elevated_cookie_name = &config.auth.elevated_jwt.cookie_name;
+    let elevated_token = auth::extract_token(&jar, jwt_elevated_cookie_name)?;
 
     let claims = auth::validate_elevated_auth_token(
         elevated_token,

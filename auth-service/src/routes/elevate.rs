@@ -13,7 +13,8 @@ use crate::{
         password::Password,
         user::UserError,
     },
-    utils::{auth, constants::JWT_COOKIE_NAME},
+    settings::Settings,
+    utils::auth,
 };
 
 #[derive(Debug, Deserialize)]
@@ -56,7 +57,10 @@ where
     T: TwoFaCodeStore,
     E: EmailClient,
 {
-    let cookie = jar.get(JWT_COOKIE_NAME).ok_or(AuthApiError::MissingToken)?;
+    let config = Settings::load();
+    let cookie = jar
+        .get(&config.auth.jwt.cookie_name)
+        .ok_or(AuthApiError::MissingToken)?;
 
     auth::validate_auth_token(cookie.value(), &*app_state.banned_token_store.read().await).await?;
 

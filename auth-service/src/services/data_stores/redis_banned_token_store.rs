@@ -6,7 +6,7 @@ use tokio::sync::Mutex;
 
 use crate::{
     domain::data_stores::{BannedTokenStore, BannedTokenStoreError},
-    utils::auth::TOKEN_TTL_SECONDS,
+    settings::Settings,
 };
 
 #[derive(Clone)]
@@ -25,7 +25,7 @@ impl BannedTokenStore for RedisBannedTokenStore {
     async fn ban_token(&mut self, token: String) -> Result<(), BannedTokenStoreError> {
         let key = get_key(&token);
 
-        let ttl = TOKEN_TTL_SECONDS as u64;
+        let ttl = Settings::load().auth.jwt.time_to_live as u64;
         let mut conn = self.conn.lock().await;
         conn.set_ex(key, true, ttl)
             .map_err(|e| BannedTokenStoreError::DatabaseError(eyre!(e)))

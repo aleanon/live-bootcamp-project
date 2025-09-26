@@ -1,10 +1,10 @@
 default:
     @just --list
 
-compose:
-    docker compose build
-    docker compose down
-    docker compose up -d
+compose name="":
+    docker compose build {{name}}
+    docker compose down {{name}}
+    docker compose up {{name}} -d
 
 compose-up:
     docker compose -f compose.dev.yml up -d
@@ -23,8 +23,11 @@ run:
 log name:
     docker logs project-{{name}}-1
 
+enter name:
+    docker exec -it project-{{name}}-1 bash
+
 test args="":
-    cargo nextest run {{args}}
+    cd {{args}}/ && cargo nextest run {{args}}
 
 cleanup-containers:
     docker stop $(docker ps -q)

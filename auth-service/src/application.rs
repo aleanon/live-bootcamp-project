@@ -18,8 +18,7 @@ use tower_http::{
 
 use crate::domain::data_stores::{BannedTokenStore, TwoFaCodeStore, UserStore};
 use crate::domain::email_client::EmailClient;
-use crate::utils;
-use crate::utils::constants::{DATABASE_URL, REDIS_HOST_NAME};
+use crate::settings::Settings;
 use crate::utils::tracing::{make_span_with_request_id, on_request, on_response};
 
 pub struct Application {
@@ -38,9 +37,7 @@ impl Application {
         T: TwoFaCodeStore + 'static,
         E: EmailClient + 'static,
     {
-        let config = app_state.config.clone();
-        let allowed_origins = config.read().await.allowed_origins.clone();
-        utils::config::listen_for_config_updates(config);
+        let allowed_origins = Settings::load().auth.allowed_origins.clone();
 
         let cors = CorsLayer::new()
             .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE])
@@ -84,7 +81,9 @@ impl Application {
 
 pub async fn configure_postgresql() -> PgPool {
     // Create a new database connection pool
-    let pg_pool = get_postgres_pool(&DATABASE_URL.expose_secret())
+    let config = Settings::load();
+    let db_url = config.postgres.url.expose_secret();
+    let pg_pool = get_postgres_pool(db_url)
         .await
         .expect("Failed to create Postgres connection pool!");
 
@@ -98,7 +97,8 @@ pub async fn configure_postgresql() -> PgPool {
 }
 
 pub fn configure_redis() -> redis::Connection {
-    get_redis_client(REDIS_HOST_NAME.to_owned())
+    let redis_host_name = &Settings::load().redis.host_name;
+    get_redis_client(redis_host_name)
         .expect("Failed to get Redis client")
         .get_connection()
         .expect("Failed to get Redis connection")
@@ -109,7 +109,7 @@ pub async fn get_postgres_pool(url: &str) -> Result<PgPool, sqlx::Error> {
     PgPoolOptions::new().max_connections(5).connect(url).await
 }
 
-pub fn get_redis_client(redis_hostname: String) -> RedisResult<Client> {
+pub fn get_redis_client(redis_hostname: &str) -> RedisResult<Client> {
     let redis_url = format!("redis://{}/", redis_hostname);
     redis::Client::open(redis_url)
 }

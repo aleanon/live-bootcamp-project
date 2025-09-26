@@ -9,10 +9,9 @@ use secrecy::{ExposeSecret, Secret};
 use serde::{Deserialize, Serialize, ser::SerializeStruct};
 use thiserror::Error;
 
-use crate::domain::{data_stores::BannedTokenStore, email::Email};
-
-use super::constants::{
-    JWT_COOKIE_NAME, JWT_ELEVATED_COOKIE_NAME, JWT_ELEVATED_SECRET, JWT_SECRET,
+use crate::{
+    domain::{data_stores::BannedTokenStore, email::Email},
+    settings::Settings,
 };
 
 #[derive(Debug, Error)]
@@ -38,31 +37,33 @@ pub fn extract_token<'a>(jar: &'a CookieJar, cookie_name: &str) -> Result<&'a st
 
 // Create cookie with a new JWT auth token
 pub fn generate_auth_cookie(email: &Email) -> Result<Cookie<'static>, TokenAuthError> {
-    let token = generate_auth_token(
-        email,
-        TOKEN_TTL_SECONDS,
-        JWT_SECRET.expose_secret().as_bytes(),
-    )?;
-    Ok(create_auth_cookie(token, JWT_COOKIE_NAME))
+    let config = Settings::get_config();
+    let token_ttl = config.auth.jwt.time_to_live;
+    let jwt_secret = config.auth.jwt.secret.expose_secret().as_bytes();
+    let jwt_cookie_name = config.auth.jwt.cookie_name.clone();
+
+    let token = generate_auth_token(email, token_ttl, jwt_secret)?;
+    Ok(create_auth_cookie(token, jwt_cookie_name))
 }
 
 pub fn generate_elevated_auth_cookie(email: &Email) -> Result<Cookie<'static>, TokenAuthError> {
-    let token = generate_auth_token(
-        email,
-        ELEVATED_TOKEN_TTL_SECONDS,
-        JWT_ELEVATED_SECRET.expose_secret().as_bytes(),
-    )?;
-    Ok(create_auth_cookie(token, JWT_ELEVATED_COOKIE_NAME))
+    let config = Settings::get_config();
+    let token_ttl = config.auth.elevated_jwt.time_to_live;
+    let jwt_secret = config.auth.elevated_jwt.secret.expose_secret().as_bytes();
+    let jwt_cookie_name = config.auth.elevated_jwt.cookie_name.clone();
+
+    let token = generate_auth_token(email, token_ttl, jwt_secret)?;
+    Ok(create_auth_cookie(token, jwt_cookie_name))
 }
 
-pub fn create_removal_cookie(cookie_name: &'static str) -> Cookie<'static> {
+pub fn create_removal_cookie(cookie_name: String) -> Cookie<'static> {
     let mut cookie = create_auth_cookie(String::new(), cookie_name);
     cookie.make_removal();
     cookie
 }
 
 // Create cookie and set the value to the passed-in token string
-pub fn create_auth_cookie(token: String, cookie_name: &'static str) -> Cookie<'static> {
+pub fn create_auth_cookie(token: String, cookie_name: String) -> Cookie<'static> {
     Cookie::build((cookie_name, token))
         .path("/") // apply cookie to all URLs on the server
         .http_only(true) // prevent JavaScript from accessing the cookie
@@ -70,10 +71,6 @@ pub fn create_auth_cookie(token: String, cookie_name: &'static str) -> Cookie<'s
         .same_site(SameSite::Lax) // send cookie with "same-site" requests, and with "cross-site" top-level navigations.
         .build()
 }
-
-// This value determines how long the JWT auth token is valid for
-pub const TOKEN_TTL_SECONDS: i64 = 600; // 10 minutes
-pub const ELEVATED_TOKEN_TTL_SECONDS: i64 = 60; // 1 minute
 
 // Create JWT auth token
 fn generate_auth_token(
@@ -110,24 +107,18 @@ pub async fn validate_auth_token(
     token: &str,
     banned_token_store: &dyn BannedTokenStore,
 ) -> Result<Claims, TokenAuthError> {
-    validate_token(
-        token,
-        banned_token_store,
-        JWT_SECRET.expose_secret().as_bytes(),
-    )
-    .await
+    let config = Settings::load();
+    let jwt_secret = config.auth.jwt.secret.expose_secret().as_bytes();
+    validate_token(token, banned_token_store, jwt_secret).await
 }
 
 pub async fn validate_elevated_auth_token(
     token: &str,
     banned_token_store: &dyn BannedTokenStore,
 ) -> Result<Claims, TokenAuthError> {
-    validate_token(
-        token,
-        banned_token_store,
-        JWT_ELEVATED_SECRET.expose_secret().as_bytes(),
-    )
-    .await
+    let config = Settings::load();
+    let jwt_secret = config.auth.elevated_jwt.secret.expose_secret().as_bytes();
+    validate_token(token, banned_token_store, jwt_secret).await
 }
 
 async fn validate_token(
@@ -195,9 +186,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_generate_auth_cookie() {
+        let config = Settings::load();
         let email = Email::try_from(Secret::from("test@example.com".to_owned())).unwrap();
         let cookie = generate_auth_cookie(&email).unwrap();
-        assert_eq!(cookie.name(), JWT_COOKIE_NAME);
+        assert_eq!(cookie.name(), config.auth.jwt.cookie_name);
         assert_eq!(cookie.value().split('.').count(), 3);
         assert_eq!(cookie.path(), Some("/"));
         assert_eq!(cookie.http_only(), Some(true));
@@ -206,9 +198,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_create_auth_cookie() {
+        let config = Settings::load();
+        let jwt_cookie_name = config.auth.jwt.cookie_name.clone();
         let token = "test_token".to_owned();
-        let cookie = create_auth_cookie(token.clone(), JWT_COOKIE_NAME);
-        assert_eq!(cookie.name(), JWT_COOKIE_NAME);
+        let cookie = create_auth_cookie(token.clone(), jwt_cookie_name.clone());
+        assert_eq!(cookie.name(), jwt_cookie_name);
         assert_eq!(cookie.value(), token);
         assert_eq!(cookie.path(), Some("/"));
         assert_eq!(cookie.http_only(), Some(true));
@@ -217,26 +211,22 @@ mod tests {
 
     #[tokio::test]
     async fn test_generate_auth_token() {
+        let config = Settings::load();
+        let token_ttl = config.auth.jwt.time_to_live;
+        let jwt_secret = config.auth.jwt.secret.expose_secret().as_bytes();
         let email = Email::try_from(Secret::from("test@example.com".to_owned())).unwrap();
-        let result = generate_auth_token(
-            &email,
-            TOKEN_TTL_SECONDS,
-            JWT_SECRET.expose_secret().as_bytes(),
-        )
-        .unwrap();
+        let result = generate_auth_token(&email, token_ttl, jwt_secret).unwrap();
         assert_eq!(result.split('.').count(), 3);
     }
 
     #[tokio::test]
     async fn test_validate_token_with_valid_token() {
+        let config = Settings::load();
+        let token_ttl = config.auth.jwt.time_to_live;
+        let jwt_secret = config.auth.jwt.secret.expose_secret().as_bytes();
         let email = Email::try_from(Secret::from("test@example.com".to_owned())).unwrap();
         let banned_token_store = HashSetBannedTokenStore::default();
-        let token = generate_auth_token(
-            &email,
-            TOKEN_TTL_SECONDS,
-            JWT_SECRET.expose_secret().as_bytes(),
-        )
-        .unwrap();
+        let token = generate_auth_token(&email, token_ttl, jwt_secret).unwrap();
         let result = validate_auth_token(&token, &banned_token_store)
             .await
             .unwrap();
@@ -260,14 +250,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_ban_token() {
+        let config = Settings::load();
+        let token_ttl = config.auth.jwt.time_to_live;
+        let jwt_secret = config.auth.jwt.secret.expose_secret().as_bytes();
         let email = Email::try_from(Secret::from("test@example.com".to_owned())).unwrap();
         let mut banned_token_store = HashSetBannedTokenStore::default();
-        let token = generate_auth_token(
-            &email,
-            TOKEN_TTL_SECONDS,
-            JWT_SECRET.expose_secret().as_bytes(),
-        )
-        .unwrap();
+        let token = generate_auth_token(&email, token_ttl, jwt_secret).unwrap();
 
         banned_token_store.ban_token(token.clone()).await.unwrap();
         let result = validate_auth_token(&token, &banned_token_store).await;
