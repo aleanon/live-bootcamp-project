@@ -53,6 +53,39 @@ impl UserStore for PostgresUserStore {
 
         Ok(())
     }
+
+    #[tracing::instrument(name = "Set new password", skip_all)]
+    async fn set_new_password(
+        &mut self,
+        email: &Email,
+        new_password: Password,
+    ) -> Result<(), UserStoreError> {
+        let password_hash = compute_password_hash(new_password)
+            .await
+            .map_err(|e| UserStoreError::UnexpectedError(e))?;
+
+        let query = sqlx::query!(
+            r#"
+                UPDATE users
+                SET password_hash = $1
+                WHERE email = $2
+            "#,
+            password_hash.expose_secret(),
+            email.as_ref().expose_secret()
+        );
+
+        query.execute(&self.pool).await.map_err(|e| {
+            if let Some(db_err) = e.as_database_error() {
+                if db_err.constraint().is_some() {
+                    return UserStoreError::UserAlreadyExists;
+                }
+            }
+            UserStoreError::UnexpectedError(e.into())
+        })?;
+
+        Ok(())
+    }
+
     #[tracing::instrument(name = "Validating user credentials in PostgreSQL", skip_all)]
     async fn authenticate_user(
         &self,
@@ -407,6 +440,29 @@ mod tests {
 
         let result = store.authenticate_user(&email, &password).await;
         assert_eq!(result, Err(UserStoreError::UserNotFound));
+    }
+
+    #[tokio::test]
+    async fn test_set_new_password() {
+        let (_container, pool) = setup_and_connect_db_container().await;
+        let mut store = PostgresUserStore::new(pool);
+        let user = create_test_user();
+        let email = user.email().clone();
+        let new_password = Password::try_from(Secret::from("newpassword123".to_string())).unwrap();
+
+        store.add_user(user).await.unwrap();
+
+        store
+            .set_new_password(&email, new_password.clone())
+            .await
+            .unwrap();
+
+        let result = store.authenticate_user(&email, &new_password).await;
+        assert!(result.is_ok());
+
+        let validated_user = result.unwrap();
+        assert_eq!(validated_user.email(), &email);
+        assert_eq!(validated_user, ValidatedUser::No2Fa(email));
     }
 
     #[tokio::test]

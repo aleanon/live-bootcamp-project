@@ -18,7 +18,7 @@ use tower_http::{
 
 use crate::domain::data_stores::{BannedTokenStore, TwoFaCodeStore, UserStore};
 use crate::domain::email_client::EmailClient;
-use crate::routes::verify_elevated_token;
+use crate::routes::{change_password, verify_elevated_token};
 use crate::settings::Settings;
 use crate::utils::tracing::{make_span_with_request_id, on_request, on_response};
 
@@ -58,6 +58,7 @@ impl Application {
             .route("/verify-token", post(verify_token))
             .route("/verify-elevated-token", post(verify_elevated_token))
             .route("/elevate", post(elevate))
+            .route("/change-password", post(change_password))
             .route("/delete-account", delete(delete_account))
             .with_state(app_state)
             .layer(cors)

@@ -342,25 +342,12 @@ paths:
   /delete-account:
     delete:
       summary: Delete account
-      description: Deletes the account with the provided email and matching password
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                email:
-                  type: string
-                  format: email
-                password:
-                  type: string
-                  format: password
+      description: Deletes the account owning the provided elevated auth token
       responses:
         "204":
           description: Account deleted
         "400":
-          description: Invalid user credentials
+          description: Missing token
           content:
             application/json:
               schema:
@@ -369,7 +356,7 @@ paths:
                   error:
                     type: string
         "401":
-          description: Unauthorized access
+          description: Invalid token
           content:
             application/json:
               schema:
@@ -450,10 +437,10 @@ paths:
                   error:
                     type: string
 
-  /reset-password:
+  /change-password:
     post:
-      summary: Reset password
-      description: Resets the password for the account with
+      summary: change password
+      description: changes the password for the email associated with the elevated auth cookie
       requestBody:
         required: true
         content:
@@ -464,20 +451,22 @@ paths:
                 newPassword:
                   type: string
                   format: password
-                token:
-                  type: string
       responses:
         "200":
-          description: Password reset successfully, sending email with new password
+          description: Password changed successfully
+        "400":
+          description: Missing token
+        "401":
+          description: Invalid JWT token
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  message:
+                  error:
                     type: string
-        "401":
-          description: Invalid JWT token
+        "422":
+          description: Unprocessable content
           content:
             application/json:
               schema:

@@ -1,3 +1,5 @@
+use auth_service::utils::constants::JWT_COOKIE_NAME;
+
 use crate::helpers::{TestApp, get_standard_test_user};
 
 #[tokio::test]
@@ -52,7 +54,7 @@ async fn should_return_400_if_logout_is_called_twice() {
 async fn logout_returns_401_if_invalid_token() {
     let app = TestApp::new().await;
 
-    app.add_invalid_cookie();
+    app.add_invalid_cookie(*JWT_COOKIE_NAME);
 
     let response = app.logout().await;
 

@@ -1,3 +1,4 @@
+mod change_password;
 mod delete_account;
 mod elevate;
 mod login;
@@ -7,6 +8,7 @@ mod verify_2fa;
 mod verify_elevated_token;
 mod verify_token;
 
+pub use change_password::{ChangePasswordRequest, change_password};
 pub use delete_account::delete_account;
 pub use elevate::elevate;
 pub use login::{TwoFactorAuthResponse, login};

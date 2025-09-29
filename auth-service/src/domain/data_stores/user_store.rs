@@ -34,6 +34,11 @@ impl PartialEq for UserStoreError {
 #[async_trait::async_trait]
 pub trait UserStore: Send + Sync {
     async fn add_user(&mut self, user: User) -> Result<(), UserStoreError>;
+    async fn set_new_password(
+        &mut self,
+        email: &Email,
+        new_password: Password,
+    ) -> Result<(), UserStoreError>;
     async fn authenticate_user(
         &self,
         email: &Email,

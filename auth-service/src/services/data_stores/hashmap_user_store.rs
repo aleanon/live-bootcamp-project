@@ -23,6 +23,19 @@ impl UserStore for HashMapUserStore {
         Ok(())
     }
 
+    async fn set_new_password(
+        &mut self,
+        email: &Email,
+        new_password: Password,
+    ) -> Result<(), UserStoreError> {
+        let user = self
+            .users
+            .get_mut(email)
+            .ok_or(UserStoreError::UserNotFound)?;
+        user.password = new_password;
+        Ok(())
+    }
+
     async fn authenticate_user(
         &self,
         email: &Email,
@@ -119,8 +132,7 @@ mod tests {
             user_store
                 .authenticate_user(
                     user.email(),
-                    &Password::try_from(Secret::from("passwordpassword".to_string()))
-                        .unwrap()
+                    &Password::try_from(Secret::from("passwordpassword".to_string())).unwrap()
                 )
                 .await
                 .is_ok()

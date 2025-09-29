@@ -13,7 +13,7 @@ use auth_service::{
         data_stores::{PostgresUserStore, RedisBannedTokenStore, RedisTwoFaCodeStore},
         postmark_email_client::PostmarkEmailClient,
     },
-    utils::constants::{JWT_COOKIE_NAME, JWT_ELEVATED_COOKIE_NAME, test},
+    utils::constants::test,
 };
 
 use reqwest::{
@@ -120,11 +120,11 @@ impl TestApp {
     //     }
     // }
 
-    pub fn add_invalid_cookie(&self) {
+    pub fn add_invalid_cookie(&self, cookie_name: &str) {
         self.cookie_jar.add_cookie_str(
             &format!(
                 "{}=invalid; HttpOnly; SameSite=Lax; Secure; Path=/",
-                *JWT_COOKIE_NAME
+                cookie_name
             ),
             &Url::parse(&self.address).expect("Failed to parse URL"),
         );
@@ -140,14 +140,14 @@ impl TestApp {
         Some(token.to_owned())
     }
 
-    pub fn get_jwt_elevated_token(&self) -> Option<String> {
+    pub fn get_token(&self, cookie_name: &str) -> Option<String> {
         self.cookie_jar
             .cookies(&Url::parse(&self.address).unwrap())?
             .to_str()
             .expect("Unable to make cookie into &str")
             .split(';')
             .map(|c| c.trim())
-            .find(|c| c.starts_with(*JWT_ELEVATED_COOKIE_NAME))
+            .find(|c| c.starts_with(cookie_name))
             .and_then(|c| {
                 c.split_once('=')
                     .and_then(|(_, token)| Some(token.to_owned()))
@@ -229,6 +229,15 @@ impl TestApp {
     pub async fn post_elevate<Body: Serialize>(&self, body: &Body) -> reqwest::Response {
         self.http_client
             .post(&format!("{}/elevate", &self.address))
+            .json(body)
+            .send()
+            .await
+            .expect("Failed to execute request")
+    }
+
+    pub async fn post_change_password<Body: Serialize>(&self, body: &Body) -> reqwest::Response {
+        self.http_client
+            .post(&format!("{}/change-password", &self.address))
             .json(body)
             .send()
             .await

@@ -13,9 +13,9 @@ pub enum UserError {
 
 #[derive(Debug, Clone)]
 pub struct User {
-    email: Email,
-    password: Password,
-    requires_2fa: bool,
+    pub email: Email,
+    pub password: Password,
+    pub requires_2fa: bool,
 }
 
 impl User {
