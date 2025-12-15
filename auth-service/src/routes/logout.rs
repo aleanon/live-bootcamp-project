@@ -2,13 +2,13 @@ use axum::{extract::State, http::StatusCode};
 use axum_extra::extract::CookieJar;
 
 use crate::{
-    app_state::AppState,
+    auth_service_state::AuthServiceState,
     domain::{
         auth_api_error::AuthApiError,
         data_stores::{BannedTokenStore, TwoFaCodeStore, UserStore},
         email_client::EmailClient,
     },
-    settings::Settings,
+    settings::AuthServiceSetting,
     utils::{
         auth::{self, create_removal_cookie},
         constants::{JWT_COOKIE_NAME, JWT_ELEVATED_COOKIE_NAME},
@@ -17,7 +17,7 @@ use crate::{
 
 #[tracing::instrument(name = "Logout", skip_all, err(Debug))]
 pub async fn logout<U, B, T, E>(
-    State(app_state): State<AppState<U, B, T, E>>,
+    State(app_state): State<AuthServiceState<U, B, T, E>>,
     mut jar: CookieJar,
 ) -> Result<(CookieJar, StatusCode), AuthApiError>
 where
@@ -26,7 +26,7 @@ where
     T: TwoFaCodeStore,
     E: EmailClient,
 {
-    let config = Settings::load();
+    let config = AuthServiceSetting::load();
     let jwt_cookie_name = config.auth.jwt.cookie_name.clone();
     let jwt_elevated_cookie_name = config.auth.elevated_jwt.cookie_name.clone();
 

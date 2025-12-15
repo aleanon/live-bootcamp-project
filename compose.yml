@@ -18,6 +18,7 @@ services:
       AUTH_SERVICE_ALLOWED_ORIGINS: ${AUTH_SERVICE_ALLOWED_ORIGINS}
       DATABASE_URL: "postgres://postgres:${POSTGRES_PASSWORD}@db:5432"
       POSTMARK_AUTH_TOKEN: ${POSTMARK_AUTH_TOKEN}
+      REDIS_HOST_NAME: ${REDIS_HOST_NAME:-redis}
     expose:
       - "3000"
     networks:

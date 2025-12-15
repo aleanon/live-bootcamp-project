@@ -4,7 +4,7 @@ use secrecy::Secret;
 use serde::Deserialize;
 
 use crate::{
-    app_state::AppState,
+    auth_service_state::AuthServiceState,
     domain::{
         auth_api_error::AuthApiError,
         data_stores::{BannedTokenStore, TwoFaCodeStore, UserStore},
@@ -13,7 +13,7 @@ use crate::{
         password::Password,
         user::UserError,
     },
-    settings::Settings,
+    settings::AuthServiceSetting,
     utils::auth,
 };
 
@@ -47,7 +47,7 @@ impl ValidElevateRequest {
 
 #[tracing::instrument(name = "Elevate auth", skip_all, err(Debug))]
 pub async fn elevate<U, B, T, E>(
-    State(app_state): State<AppState<U, B, T, E>>,
+    State(app_state): State<AuthServiceState<U, B, T, E>>,
     jar: CookieJar,
     Json(elevate_request): Json<ElevateRequest>,
 ) -> Result<impl IntoResponse, AuthApiError>
@@ -57,7 +57,7 @@ where
     T: TwoFaCodeStore,
     E: EmailClient,
 {
-    let config = Settings::load();
+    let config = AuthServiceSetting::load();
     let cookie = jar
         .get(&config.auth.jwt.cookie_name)
         .ok_or(AuthApiError::MissingToken)?;

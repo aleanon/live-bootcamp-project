@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
 use auth_service::{
-    Application,
-    app_state::AppState,
-    application::get_postgres_pool,
+    AuthService,
+    auth_service::get_postgres_pool,
+    auth_service_state::AuthServiceState,
     domain::{
         data_stores::{BannedTokenStore, TwoFaCodeStore},
         email::Email,
@@ -29,7 +29,10 @@ use testcontainers_modules::{
     redis::Redis,
     testcontainers::{ContainerAsync, runners::AsyncRunner},
 };
-use tokio::sync::{Mutex, RwLock};
+use tokio::{
+    net::TcpListener,
+    sync::{Mutex, RwLock},
+};
 use uuid::Uuid;
 use wiremock::MockServer;
 
@@ -68,20 +71,22 @@ impl TestApp {
 
         let user_store = Arc::new(RwLock::new(PostgresUserStore::new(pool)));
 
-        let app_state = AppState::new(
+        let listener = TcpListener::bind(test::APP_ADDRESS)
+            .await
+            .expect("Failed to bind to address");
+
+        let address = format!("http://{}", listener.local_addr().unwrap());
+
+        let app_state = AuthServiceState::new(
             user_store,
             banned_token_store.clone(),
             two_fa_code_store.clone(),
             email_client,
         );
 
-        let app = Application::build(app_state, test::APP_ADDRESS)
-            .await
-            .expect("Failed to build app");
+        let app = AuthService::with_state(app_state);
 
-        let address = format!("http://{}", app.address.clone());
-
-        let _ = tokio::spawn(app.run());
+        let _ = tokio::spawn(app.as_standalone(listener, None));
 
         let cookie_jar = Arc::new(Jar::default());
         let http_client = reqwest::Client::builder()

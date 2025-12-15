@@ -53,7 +53,7 @@
 
 use std::sync::LazyLock;
 
-use crate::settings::Settings;
+use crate::settings::AuthServiceSetting;
 
 pub mod env {
     pub const JWT_SECRET_ENV_VAR: &str = "JWT_SECRET";
@@ -65,11 +65,15 @@ pub mod env {
 }
 
 pub const JWT_COOKIE_NAME: LazyLock<&'static str> = LazyLock::new(|| {
-    let cookie_name = Settings::load().auth.jwt.cookie_name.clone();
+    let cookie_name = AuthServiceSetting::load().auth.jwt.cookie_name.clone();
     Box::leak(cookie_name.into_boxed_str())
 });
 pub static JWT_ELEVATED_COOKIE_NAME: LazyLock<&'static str> = LazyLock::new(|| {
-    let cookie_name = Settings::load().auth.elevated_jwt.cookie_name.clone();
+    let cookie_name = AuthServiceSetting::load()
+        .auth
+        .elevated_jwt
+        .cookie_name
+        .clone();
     Box::leak(cookie_name.into_boxed_str())
 });
 // pub const DEFAULT_REDIS_HOSTNAME: &str = "127.0.0.1";

@@ -4,7 +4,7 @@ use secrecy::Secret;
 use serde::Deserialize;
 
 use crate::{
-    app_state::AppState,
+    auth_service_state::AuthServiceState,
     domain::{
         auth_api_error::AuthApiError,
         data_stores::{BannedTokenStore, TwoFaCodeStore, UserStore},
@@ -13,7 +13,7 @@ use crate::{
         two_fa_attempt_id::TwoFaAttemptId,
         two_fa_code::TwoFaCode,
     },
-    settings::Settings,
+    settings::AuthServiceSetting,
     utils::auth,
 };
 
@@ -28,7 +28,7 @@ pub struct Verify2FARequest {
 
 #[tracing::instrument(name = "Verify 2FA", skip_all, err(Debug))]
 pub async fn verify_two_fa<U, B, T, E>(
-    State(app_state): State<AppState<U, B, T, E>>,
+    State(app_state): State<AuthServiceState<U, B, T, E>>,
     jar: CookieJar,
     Json(request): Json<Verify2FARequest>,
 ) -> Result<impl IntoResponse, AuthApiError>
@@ -38,7 +38,7 @@ where
     T: TwoFaCodeStore,
     E: EmailClient,
 {
-    let config = Settings::load();
+    let config = AuthServiceSetting::load();
     let email = Email::try_from(request.email)?;
     let login_attempt_id = TwoFaAttemptId::parse(&request.login_attempt_id)?;
     let two_fa_code = TwoFaCode::parse(request.two_factor_code.clone())?;

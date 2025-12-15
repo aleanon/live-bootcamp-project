@@ -24,18 +24,25 @@ pub struct ErrorResponse {
 pub enum AuthApiError {
     #[error("User not found")]
     UserNotFound,
+
     #[error("User already exists")]
     UserAlreadyExists,
+
     #[error("Invalid input: {0}")]
     InvalidInput(Box<dyn std::error::Error + Send + Sync>),
+
     #[error("Missing token")]
     MissingToken,
+
     #[error("Authentication failed: {0}")]
     AuthenticationError(Box<dyn std::error::Error + Send + Sync>),
+
     #[error("Invalid login attempt ID")]
     InvalidLoginAttemptId,
+
     #[error("Invalid two-factor authentication code")]
     InvalidTwoFaCode,
+
     #[error("Unexpected error")]
     UnexpectedError(#[from] Report),
 }
@@ -46,11 +53,14 @@ impl IntoResponse for AuthApiError {
             AuthApiError::InvalidInput(_) | AuthApiError::MissingToken => {
                 (StatusCode::BAD_REQUEST, self.to_string())
             }
+
             AuthApiError::UserAlreadyExists => (StatusCode::CONFLICT, self.to_string()),
+
             AuthApiError::AuthenticationError(_)
             | AuthApiError::UserNotFound
             | AuthApiError::InvalidLoginAttemptId
             | AuthApiError::InvalidTwoFaCode => (StatusCode::UNAUTHORIZED, self.to_string()),
+
             AuthApiError::UnexpectedError(_) => {
                 (StatusCode::INTERNAL_SERVER_ERROR, self.to_string())
             }

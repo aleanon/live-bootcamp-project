@@ -2,20 +2,20 @@ use axum::{extract::State, http::StatusCode, response::IntoResponse};
 use axum_extra::extract::CookieJar;
 
 use crate::{
-    app_state::AppState,
+    auth_service_state::AuthServiceState,
     domain::{
         auth_api_error::AuthApiError,
         data_stores::{BannedTokenStore, TwoFaCodeStore, UserStore},
         email::Email,
         email_client::EmailClient,
     },
-    settings::Settings,
+    settings::AuthServiceSetting,
     utils::auth,
 };
 
 #[tracing::instrument(name = "Delete Account", skip_all, err(Debug))]
 pub async fn delete_account<U, B, T, E>(
-    State(app_state): State<AppState<U, B, T, E>>,
+    State(app_state): State<AuthServiceState<U, B, T, E>>,
     jar: CookieJar,
 ) -> Result<impl IntoResponse, AuthApiError>
 where
@@ -24,7 +24,7 @@ where
     T: TwoFaCodeStore,
     E: EmailClient,
 {
-    let config = Settings::load();
+    let config = AuthServiceSetting::load();
     let jwt_elevated_cookie_name = &config.auth.elevated_jwt.cookie_name;
     let elevated_token = auth::extract_token(&jar, jwt_elevated_cookie_name)?;
 

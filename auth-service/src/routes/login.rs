@@ -6,7 +6,7 @@ use secrecy::Secret;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    app_state::AppState,
+    auth_service_state::AuthServiceState,
     domain::{
         auth_api_error::AuthApiError,
         data_stores::{BannedTokenStore, TwoFaCodeStore, UserStore},
@@ -17,7 +17,7 @@ use crate::{
         two_fa_code::TwoFaCode,
         user::{UserError, ValidatedUser},
     },
-    settings::{Config, Settings},
+    settings::{AuthServiceSetting, Config},
     utils::auth::generate_auth_cookie,
 };
 
@@ -70,7 +70,7 @@ pub struct TwoFactorAuthResponse {
 
 #[tracing::instrument(name = "Login", skip_all, err(Debug))]
 pub async fn login<U, B, T, E>(
-    State(app_state): State<AppState<U, B, T, E>>,
+    State(app_state): State<AuthServiceState<U, B, T, E>>,
     jar: CookieJar,
     Json(login_request): Json<LoginRequest>,
 ) -> Result<impl IntoResponse, AuthApiError>
@@ -80,7 +80,7 @@ where
     T: TwoFaCodeStore,
     E: EmailClient,
 {
-    let config = Settings::load();
+    let config = AuthServiceSetting::load();
 
     let login_request = ValidLoginRequest::parse(login_request)?;
 
@@ -99,7 +99,7 @@ where
 
 async fn handle_2fa<U, B, T, E>(
     email: Email,
-    app_state: AppState<U, B, T, E>,
+    app_state: AuthServiceState<U, B, T, E>,
     jar: CookieJar,
 ) -> Result<(CookieJar, (StatusCode, Json<LoginResponse>)), AuthApiError>
 where

@@ -2,7 +2,7 @@ use axum::{Json, extract::State, http::StatusCode, response::IntoResponse};
 use serde::Deserialize;
 
 use crate::{
-    app_state::AppState,
+    auth_service_state::AuthServiceState,
     domain::{
         auth_api_error::AuthApiError,
         data_stores::{BannedTokenStore, TwoFaCodeStore, UserStore},
@@ -18,7 +18,7 @@ pub struct VerifyTokenRequest {
 
 #[tracing::instrument(name = "Verify Token", skip_all, err(Debug))]
 pub async fn verify_token<U, B, T, E>(
-    State(app_state): State<AppState<U, B, T, E>>,
+    State(app_state): State<AuthServiceState<U, B, T, E>>,
     Json(token_request): Json<VerifyTokenRequest>,
 ) -> Result<impl IntoResponse, AuthApiError>
 where

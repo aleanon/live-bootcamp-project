@@ -227,7 +227,7 @@ async fn compute_password_hash(password: Password) -> Result<Secret<String>> {
 #[cfg(test)]
 mod tests {
 
-    use crate::application::get_postgres_pool;
+    use crate::auth_service::get_postgres_pool;
 
     use super::*;
     use secrecy::{ExposeSecret, Secret};

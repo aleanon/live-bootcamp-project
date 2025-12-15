@@ -4,7 +4,7 @@ use secrecy::{ExposeSecret, Secret};
 
 use crate::{
     domain::{email::Email, email_client::EmailClient},
-    settings::Settings,
+    settings::AuthServiceSetting,
     utils::constants::prod,
 };
 
@@ -85,7 +85,10 @@ pub fn configure_postmark_email_client() -> PostmarkEmailClient {
     PostmarkEmailClient::new(
         prod::email_client::BASE_URL.to_owned(),
         Email::try_from(Secret::new(prod::email_client::SENDER.to_owned())).unwrap(),
-        Settings::load().email_client.auth_token.to_owned(),
+        AuthServiceSetting::load()
+            .email_client
+            .auth_token
+            .to_owned(),
         http_client,
     )
 }

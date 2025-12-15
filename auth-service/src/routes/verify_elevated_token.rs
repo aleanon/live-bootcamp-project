@@ -2,7 +2,7 @@ use axum::{Json, extract::State, http::StatusCode, response::IntoResponse};
 use serde::Deserialize;
 
 use crate::{
-    app_state::AppState,
+    auth_service_state::AuthServiceState,
     domain::{
         auth_api_error::AuthApiError,
         data_stores::{BannedTokenStore, TwoFaCodeStore, UserStore},
@@ -18,7 +18,7 @@ pub struct VerifyElevatedTokenRequest {
 
 #[tracing::instrument(name = "Verify Elevated Token", skip_all, err(Debug))]
 pub async fn verify_elevated_token<U, B, T, E>(
-    State(app_state): State<AppState<U, B, T, E>>,
+    State(app_state): State<AuthServiceState<U, B, T, E>>,
     Json(token_request): Json<VerifyElevatedTokenRequest>,
 ) -> Result<impl IntoResponse, AuthApiError>
 where
@@ -29,7 +29,8 @@ where
 {
     let banned_token_store = app_state.banned_token_store.read().await;
 
-    let _claims = auth::validate_elevated_auth_token(&token_request.token, &*banned_token_store).await?;
+    let _claims =
+        auth::validate_elevated_auth_token(&token_request.token, &*banned_token_store).await?;
 
     Ok(StatusCode::OK)
 }

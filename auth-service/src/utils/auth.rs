@@ -13,7 +13,7 @@ use thiserror::Error;
 
 use crate::{
     domain::{data_stores::BannedTokenStore, email::Email},
-    settings::{Config, Settings},
+    settings::{AuthServiceSetting, Config},
     utils::constants::{JWT_COOKIE_NAME, JWT_ELEVATED_COOKIE_NAME},
 };
 
@@ -100,7 +100,7 @@ fn generate_auth_token(
         .try_into()
         .map_err(|_| TokenAuthError::UnexpectedError(eyre!("Failed to cast i64 to usize")))?;
 
-    let sub = email.as_ref().to_owned();
+    let sub = Clone::clone(email.as_ref());
 
     let claims = Claims { sub, exp };
 
@@ -112,7 +112,7 @@ pub async fn validate_auth_token(
     token: &str,
     banned_token_store: &dyn BannedTokenStore,
 ) -> Result<Claims, TokenAuthError> {
-    let config = Settings::load();
+    let config = AuthServiceSetting::load();
     let jwt_secret = config.auth.jwt.secret.expose_secret().as_bytes();
     validate_token(token, banned_token_store, jwt_secret).await
 }
@@ -121,7 +121,7 @@ pub async fn validate_elevated_auth_token(
     token: &str,
     banned_token_store: &dyn BannedTokenStore,
 ) -> Result<Claims, TokenAuthError> {
-    let config = Settings::load();
+    let config = AuthServiceSetting::load();
     let jwt_secret = config.auth.elevated_jwt.secret.expose_secret().as_bytes();
     validate_token(token, banned_token_store, jwt_secret).await
 }
@@ -191,7 +191,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_generate_auth_cookie() {
-        let config = Settings::load();
+        let config = AuthServiceSetting::load();
         let email = Email::try_from(Secret::from("test@example.com".to_owned())).unwrap();
         let cookie = generate_auth_cookie(&email, &config).unwrap();
         assert_eq!(cookie.name(), config.auth.jwt.cookie_name);
@@ -203,7 +203,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_create_auth_cookie() {
-        let config = Settings::load();
+        let config = AuthServiceSetting::load();
         let jwt_cookie_name = config.auth.jwt.cookie_name.clone();
         let token = "test_token".to_owned();
         let cookie = create_auth_cookie(token.clone(), &jwt_cookie_name);
@@ -216,7 +216,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_generate_auth_token() {
-        let config = Settings::load();
+        let config = AuthServiceSetting::load();
         let token_ttl = config.auth.jwt.time_to_live;
         let jwt_secret = config.auth.jwt.secret.expose_secret().as_bytes();
         let email = Email::try_from(Secret::from("test@example.com".to_owned())).unwrap();
@@ -226,7 +226,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_validate_token_with_valid_token() {
-        let config = Settings::load();
+        let config = AuthServiceSetting::load();
         let token_ttl = config.auth.jwt.time_to_live;
         let jwt_secret = config.auth.jwt.secret.expose_secret().as_bytes();
         let email = Email::try_from(Secret::from("test@example.com".to_owned())).unwrap();
@@ -255,7 +255,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_ban_token() {
-        let config = Settings::load();
+        let config = AuthServiceSetting::load();
         let token_ttl = config.auth.jwt.time_to_live;
         let jwt_secret = config.auth.jwt.secret.expose_secret().as_bytes();
         let email = Email::try_from(Secret::from("test@example.com".to_owned())).unwrap();

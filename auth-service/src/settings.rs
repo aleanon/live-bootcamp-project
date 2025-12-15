@@ -186,9 +186,9 @@ fn get_allowed_origins() -> Option<Vec<String>> {
 }
 
 #[derive(Debug, Clone)]
-pub struct Settings;
+pub struct AuthServiceSetting;
 
-impl Settings {
+impl AuthServiceSetting {
     pub fn load() -> Guard<Arc<Config>> {
         CONFIG.load()
     }
@@ -207,7 +207,7 @@ mod tests {
     #[test]
     fn test_settings_creation() {
         dotenv().ok();
-        let config = Settings::load();
+        let config = AuthServiceSetting::load();
         assert!(!config.auth.jwt.secret.expose_secret().is_empty());
         assert!(!config.auth.elevated_jwt.secret.expose_secret().is_empty());
         assert!(!config.postgres.url.expose_secret().is_empty());

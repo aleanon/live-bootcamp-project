@@ -5,7 +5,7 @@ use crate::domain::email_client::EmailClient as EmailClientTrait;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-pub struct AppState<UserStore, BannedTokenStore, TwoFaCodeStore, EmailClient>
+pub struct AuthServiceState<UserStore, BannedTokenStore, TwoFaCodeStore, EmailClient>
 where
     UserStore: UserStoreTrait,
     BannedTokenStore: BannedTokensStoreTrait,
@@ -19,7 +19,7 @@ where
 }
 
 impl<UserStore, BannedTokenStore, TwoFaCodeStore, EmailClient>
-    AppState<UserStore, BannedTokenStore, TwoFaCodeStore, EmailClient>
+    AuthServiceState<UserStore, BannedTokenStore, TwoFaCodeStore, EmailClient>
 where
     UserStore: UserStoreTrait,
     BannedTokenStore: BannedTokensStoreTrait,
@@ -32,7 +32,7 @@ where
         two_fa_code_store: Arc<RwLock<TwoFaCodeStore>>,
         email_client: Arc<EmailClient>,
     ) -> Self {
-        AppState {
+        AuthServiceState {
             user_store,
             banned_token_store,
             two_fa_code_store,
@@ -41,12 +41,12 @@ where
     }
 }
 
-impl<UserStore, BannedTokenStore, TwoFaTokenStore, EmailClient> Clone
-    for AppState<UserStore, BannedTokenStore, TwoFaTokenStore, EmailClient>
+impl<UserStore, BannedTokenStore, TwoFaCodeStore, EmailClient> Clone
+    for AuthServiceState<UserStore, BannedTokenStore, TwoFaCodeStore, EmailClient>
 where
     UserStore: UserStoreTrait,
     BannedTokenStore: BannedTokensStoreTrait,
-    TwoFaTokenStore: TwoFaCodeStoreTrait,
+    TwoFaCodeStore: TwoFaCodeStoreTrait,
     EmailClient: EmailClientTrait,
 {
     fn clone(&self) -> Self {

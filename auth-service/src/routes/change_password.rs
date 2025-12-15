@@ -7,7 +7,7 @@ use serde::Deserialize;
 use crate::domain::data_stores::{BannedTokenStore, TwoFaCodeStore, UserStore};
 use crate::domain::email::Email;
 use crate::{
-    app_state::AppState,
+    auth_service_state::AuthServiceState,
     domain::{auth_api_error::AuthApiError, email_client::EmailClient, password::Password},
     utils::{auth, constants::JWT_ELEVATED_COOKIE_NAME},
 };
@@ -17,8 +17,9 @@ pub struct ChangePasswordRequest {
     new_password: Secret<String>,
 }
 
+#[tracing::instrument(name = "Change Password", skip_all, err(Debug))]
 pub async fn change_password<U, B, T, E>(
-    State(app_state): State<AppState<U, B, T, E>>,
+    State(app_state): State<AuthServiceState<U, B, T, E>>,
     jar: CookieJar,
     Json(request): Json<ChangePasswordRequest>,
 ) -> Result<impl IntoResponse, AuthApiError>
